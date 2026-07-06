@@ -9,6 +9,8 @@ import dev.companionremote.app.discovery.DiscoveredAtv
 import dev.companionremote.protocol.client.CompanionClient
 import dev.companionremote.protocol.client.HidCommand
 import dev.companionremote.protocol.client.KeyboardFocusState
+import dev.companionremote.protocol.client.TouchPhase
+import kotlinx.coroutines.channels.Channel
 import dev.companionremote.protocol.companion.CompanionConnection
 import dev.companionremote.protocol.hap.HapCredentials
 import dev.companionremote.protocol.hap.PairSetup
@@ -65,6 +67,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private var reconnectJob: Job? = null
     private var keyboardFocusJob: Job? = null
     private var textSyncJob: Job? = null
+
+    /** Launchable apps (bundle id → name); null until loaded. */
+    val apps = MutableStateFlow<List<Pair<String, String>>?>(null)
+    val appsError = MutableStateFlow<String?>(null)
+
+    // Touch events must reach the device in order: single consumer channel.
+    private val touchEvents = Channel<Triple<Long, Long, TouchPhase>>(capacity = 256)
+    private var touchJob: Job? = null
+    private var lastHoldSentAt = 0L
 
     init {
         startScan()
@@ -181,6 +192,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 client = newClient
                 connectionState.value = ConnectionState.Connected
                 observeKeyboard(newClient)
+                consumeTouchEvents(newClient)
             } catch (e: Exception) {
                 client = null
                 connectionState.value = ConnectionState.Disconnected
@@ -263,6 +275,45 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         textSyncJob?.cancel()
         withClient { it.textClear() }
     }
+
+    // Touchpad (M7)
+
+    private fun consumeTouchEvents(newClient: CompanionClient) {
+        touchJob?.cancel()
+        touchJob = viewModelScope.launch {
+            for ((x, y, phase) in touchEvents) {
+                runCatching { newClient.touchEvent(x, y, phase) }
+            }
+        }
+    }
+
+    /** Queue a touch event; Hold events are throttled to ~16 ms like pyatv. */
+    fun sendTouch(x: Long, y: Long, phase: TouchPhase) {
+        if (phase == TouchPhase.Hold) {
+            val now = System.currentTimeMillis()
+            if (now - lastHoldSentAt < 16) return
+            lastHoldSentAt = now
+        }
+        touchEvents.trySend(Triple(x, y, phase))
+    }
+
+    fun touchTap() = withClient { it.tap() }
+
+    // Apps (M7)
+
+    fun loadApps(force: Boolean = false) {
+        if (apps.value != null && !force) return
+        appsError.value = null
+        withClient { current ->
+            runCatching { current.appList() }
+                .onSuccess { list ->
+                    apps.value = list.toList().sortedBy { it.second.lowercase() }
+                }
+                .onFailure { appsError.value = it.message }
+        }
+    }
+
+    fun launchApp(bundleId: String) = withClient { it.launchApp(bundleId) }
 
     fun wake() = withClient { it.wake() }
 
