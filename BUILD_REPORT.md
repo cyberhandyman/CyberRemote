@@ -60,16 +60,23 @@ Contents/Home`), Gradle 8.14.3 (wrapper), Android SDK at
 
 ## Checklist ① — requires the real Apple TV
 
-1. `cli pair --host <ip>` → PIN appears on TV, pairing completes, creds file
-   written (M3).
-2. `cli verify --host <ip>` reconnect with stored creds (M3).
-3. All buttons via `cli command …` visibly work; wake/sleep (M4).
-4. App: discovery finds the ATV (multicast lock), pairing flow, remote
-   screen daily-drive (M5).
-5. Keyboard: focus a TV search field → app keyboard mode syncs; ASCII, CJK
-   (Japanese/Korean), emoji; secure fields; graceful no-op unfocused (M6).
-6. Touchpad swipes + app list/launch (M7).
-7. Reconnect after ATV reboot (port change) and after phone Wi-Fi toggle.
+Verified 2026-07-06 against an Apple TV 4K (AppleTV14,1) at 192.168.50.173.
+
+1. ✅ `cli pair` → PIN on TV, pairing completes, creds written (M3).
+2. ✅ `cli verify` reconnect with stored creds; session keys derived (M3).
+3. ✅ Buttons visibly work — home + arrows confirmed on screen; `power`
+   returned Awake; `apps` returned the full app map; `launch` opened the App
+   Store (M4). ⏳ wake/sleep and every remaining button not yet individually
+   exercised (low risk — same `_hidC` path).
+4. ⏳ App discovery/pairing/daily-drive — APK builds; not yet run on a phone
+   (M5).
+5. ✅ Keyboard: focus event detection confirmed (`_tiStarted`/`_tiStopped`);
+   typed `hello 你好 🙂 한국어` (ASCII+Chinese+emoji+Korean) into the App
+   Store search box; graceful no-op when unfocused confirmed (M6). Real-
+   device deviation found and fixed — see protocol-notes "RTI text-input
+   focus". ⏳ secure/password fields not yet tried.
+6. ⏳ Touchpad swipe not yet tried; `apps`/`launch` ✅ via cli (M7).
+7. ⏳ Reconnect after ATV reboot (port change) / phone Wi-Fi toggle.
 8. atvproxy capture (optional) to turn real frames into regression vectors.
 
 ## Checklist ② — known gaps / TODO / suspicious
@@ -91,10 +98,15 @@ Contents/Home`), Gradle 8.14.3 (wrapper), Android SDK at
   locally; the signing-secret path runs first on a real tag. The tag v1.0.0
   exists locally only — push it (with signing secrets configured) to publish.
 - Android app has no instrumentation tests (unit tests only in :protocol).
-- pyatv restarts the RTI session (`_tiStop`+`_tiStart`) on every text
-  command; with the app's per-keystroke (debounced 250 ms) textSet this may
-  feel laggy on device — if so, cache the sessionUUID from focus events
-  instead of restarting (a deviation from pyatv, so only with device proof).
+- RESOLVED on device: the RTI session UUID (`_tiD`) comes from the
+  `_tiStarted` **event**, not the `_tiStart` response, on this tvOS. The
+  client now caches it from focus events instead of restarting the session
+  each call (see protocol-notes). Implication carried forward: a text field
+  that was **already focused before the app connected** yields no event and
+  so no UUID; the app relies on the user focusing (or re-focusing) a field
+  while connected. If that proves annoying in daily use, consider issuing a
+  `_tiStop`+`_tiStart` on connect to provoke a fresh `_tiStarted` — untested,
+  the device did not re-emit on a bare restart in one attempt.
 - App keyboard has no "return/submit" key mapping (pyatv has none either);
   tvOS search fields filter live, so likely fine.
 - `resolveByName` re-scans mDNS on every (re)connect; if mDNS fails the app

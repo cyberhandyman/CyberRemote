@@ -226,6 +226,60 @@ UTF-8.** (CLAUDE.md originally guessed "UTF-8 payload" — wrong.)
   current text, then sends `_tiC` events (clear first if replacing).
 - text_get returns None when nothing is focused (no `_tiD`) — no-op path.
 
+## Real-device findings (verified against an Apple TV 4K, AppleTV14,1, 2026-07-06)
+
+Captured with the `cli` against a live device. These are behaviors observed
+on hardware that differ from — or refine — the pyatv-derived notes above.
+
+### Pairing / commands (M3, M4) — all confirmed working
+- Full pair-setup (PIN on screen) + pair-verify + encrypted session verified
+  end to end; SRP proof / HKDF salts+infos / ChaCha nonce+AAD are all correct
+  as ported (no adjustments needed). Credentials round-trip in the
+  4-hex-field format.
+- `_hidC` buttons (home, arrows), `_launchApp`, `FetchAttentionState`
+  (returned `state=3` Awake), `FetchLaunchableApplicationsEvent` (full app
+  map incl. CJK names) all work over the encrypted session.
+- Practical gotcha: the device closes an **idle** pairing TCP connection
+  after ~30–60 s. Between PS_Start (which makes the PIN appear) and PS_Next
+  the user must enter the PIN reasonably promptly, or the socket is gone and
+  M3 fails with "connection closed" before it is even sent. Not a protocol
+  bug — just enter the PIN quickly (the cli reads it on stdin).
+
+### RTI text-input focus — the `_tiD` session UUID comes from the EVENT, not the response
+
+This is the significant real-device deviation from pyatv's flow.
+
+- pyatv's `text_input_command` does `_tiStop` then `_tiStart` and reads the
+  session UUID from the **`_tiStart` response** (`_c._tiD`). On this tvOS the
+  `_tiStart` response `_c` is **empty** even while a field is focused — the
+  session UUID is never in the response.
+- Instead, `_tiD` (a keyed-archive carrying `sessionUUID` and the current
+  document state) arrives only in the **`_tiStarted` event**, which the
+  device pushes when a text field transitions **unfocused → focused**. A
+  `_tiStopped` event (empty `_c`) is pushed on focus loss. Verified by
+  watching the event stream: focusing a search box emits
+  `_tiStarted content-keys=[_tiV, _tiD]`; leaving it emits `_tiStopped`.
+- Consequences for the port (implemented in `CompanionClient`):
+  - Focus state and the cached `_tiD` are driven **only** by
+    `_tiStarted`/`_tiStopped` events, never inferred from an empty
+    `_tiStart` response (an empty `_c` must NOT be read as "unfocused" —
+    hence `KeyboardFocusState.Unknown` until the first event).
+  - `textInputCommand` uses the `_tiD` cached from the latest `_tiStarted`
+    event; it does **not** `_tiStop`+`_tiStart` on every call (that would
+    tear down the session and never yields the UUID here). It falls back to
+    one `_tiStart` (for pyatv-style devices that do answer with `_tiD`) and
+    waits briefly for either source.
+  - Because the UUID only appears on the unfocused→focused transition, a
+    **one-shot** command against an already-focused field cannot get it
+    (the cli `text-set` then no-ops). A **long-lived** connection that is
+    already listening when the field gains focus does — which is exactly the
+    Android app's model, and the cli `text-live` command (added for this
+    verification: connect, wait for the focus event, then type).
+- Verified typing on hardware: `hello 你好 🙂 한국어` (ASCII + Chinese +
+  emoji + Korean) landed correctly in the App Store search box via the
+  cached-`_tiD` path. Graceful no-op (prints "focus one first") confirmed
+  when nothing is focused.
+
 ## Credentials string format — `auth/hap_pairing.py`
 
 `ltpk_hex:ltsk_hex:atv_id_hex:client_id_hex` (4 fields). We keep the same

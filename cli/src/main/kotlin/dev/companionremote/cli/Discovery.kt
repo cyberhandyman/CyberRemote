@@ -19,44 +19,53 @@ data class DiscoveredDevice(
     val flags: String?,
 )
 
-private fun siteLocalAddress(): InetAddress? =
+private fun siteLocalAddresses(): List<InetAddress> =
     NetworkInterface.getNetworkInterfaces().asSequence()
         .filter { it.isUp && !it.isLoopback }
         .flatMap { it.inetAddresses.asSequence() }
-        .firstOrNull { it.isSiteLocalAddress }
+        .filter { it.isSiteLocalAddress && it.address.size == 4 }
+        .toList()
 
-/** Browse for Companion services for [durationMs]. */
+/**
+ * Browse for Companion services for [durationMs]. A JmDNS instance is bound
+ * to every site-local interface (VPN/VM adapters would otherwise shadow the
+ * real LAN) and results are aggregated.
+ */
 suspend fun discover(durationMs: Long = 5_000): List<DiscoveredDevice> = withContext(Dispatchers.IO) {
     val devices = LinkedHashMap<String, DiscoveredDevice>()
-    val jmdns = JmDNS.create(siteLocalAddress())
+    val instances = siteLocalAddresses().mapNotNull { address ->
+        runCatching { JmDNS.create(address) }.getOrNull()
+    }
     try {
-        jmdns.addServiceListener(
-            COMPANION_SERVICE,
-            object : ServiceListener {
-                override fun serviceAdded(event: ServiceEvent) {
-                    jmdns.requestServiceInfo(event.type, event.name, true)
-                }
-
-                override fun serviceRemoved(event: ServiceEvent) = Unit
-
-                override fun serviceResolved(event: ServiceEvent) {
-                    val info = event.info
-                    val address = info.inet4Addresses.firstOrNull()?.hostAddress ?: return
-                    synchronized(devices) {
-                        devices[event.name] = DiscoveredDevice(
-                            name = event.name,
-                            address = address,
-                            port = info.port,
-                            model = info.getPropertyString("rpMd"),
-                            flags = info.getPropertyString("rpFl"),
-                        )
+        for (jmdns in instances) {
+            jmdns.addServiceListener(
+                COMPANION_SERVICE,
+                object : ServiceListener {
+                    override fun serviceAdded(event: ServiceEvent) {
+                        jmdns.requestServiceInfo(event.type, event.name, true)
                     }
-                }
-            },
-        )
+
+                    override fun serviceRemoved(event: ServiceEvent) = Unit
+
+                    override fun serviceResolved(event: ServiceEvent) {
+                        val info = event.info
+                        val address = info.inet4Addresses.firstOrNull()?.hostAddress ?: return
+                        synchronized(devices) {
+                            devices[event.name] = DiscoveredDevice(
+                                name = event.name,
+                                address = address,
+                                port = info.port,
+                                model = info.getPropertyString("rpMd"),
+                                flags = info.getPropertyString("rpFl"),
+                            )
+                        }
+                    }
+                },
+            )
+        }
         delay(durationMs)
     } finally {
-        jmdns.close()
+        for (jmdns in instances) runCatching { jmdns.close() }
     }
     synchronized(devices) { devices.values.toList() }
 }

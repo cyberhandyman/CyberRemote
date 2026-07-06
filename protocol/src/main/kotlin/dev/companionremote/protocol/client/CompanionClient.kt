@@ -52,6 +52,13 @@ class CompanionClient(
 
     private val _keyboardFocus = MutableStateFlow(KeyboardFocusState.Unknown)
 
+    // Most recent `_tiD` keyed archive from a `_tiStarted` event (or a
+    // `_tiStart` response that happened to carry one). On this hardware the
+    // sessionUUID lives here, NOT in the response to a `_tiStop`+`_tiStart`
+    // restart (see docs/protocol-notes.md — real-device deviation from pyatv).
+    @Volatile
+    private var latestTiData: ByteArray? = null
+
     /**
      * Whether a text field is focused on the TV. Derived (like pyatv's
      * `CompanionKeyboard`) from `_tiStarted`/`_tiStopped` events and the
@@ -68,7 +75,7 @@ class CompanionClient(
         scope.launch {
             events.collect { event ->
                 if (event.name == "_tiStarted" || event.name == "_tiStopped") {
-                    updateKeyboardFocus(event.content)
+                    onFocusEvent(event.content)
                 }
             }
         }
@@ -152,7 +159,11 @@ class CompanionClient(
         val response = sendRequest("_tiStart", emptyMap())
         val content = contentOf(response)
         textInputSession = content
-        updateKeyboardFocus(content)
+        // A `_tiStart` response only carries `_tiD` if the field was already
+        // focused when the session opened; when it does, cache it. An empty
+        // `_c` must NOT clear focus — on this hardware it is the normal
+        // response and the real state arrives via `_tiStarted` events.
+        cacheTiDataIfPresent(content)
         return content
     }
 
@@ -160,9 +171,33 @@ class CompanionClient(
         sendRequest("_tiStop", emptyMap())
     }
 
-    private fun updateKeyboardFocus(content: Map<Any?, Any?>) {
-        _keyboardFocus.value =
-            if ("_tiD" in content) KeyboardFocusState.Focused else KeyboardFocusState.Unfocused
+    /** Handle a `_tiStarted`/`_tiStopped` event (authoritative focus source). */
+    private fun onFocusEvent(content: Map<Any?, Any?>) {
+        val tiData = content["_tiD"] as? ByteArray
+        if (tiData != null) {
+            latestTiData = tiData
+            _keyboardFocus.value = KeyboardFocusState.Focused
+        } else {
+            latestTiData = null
+            _keyboardFocus.value = KeyboardFocusState.Unfocused
+        }
+    }
+
+    private fun cacheTiDataIfPresent(content: Map<Any?, Any?>) {
+        (content["_tiD"] as? ByteArray)?.let {
+            latestTiData = it
+            _keyboardFocus.value = KeyboardFocusState.Focused
+        }
+    }
+
+    /** Poll for a cached `_tiD` (from response or `_tiStarted` event). */
+    private suspend fun waitForTiData(timeoutMs: Long): ByteArray? {
+        var waited = 0L
+        while (latestTiData == null && waited < timeoutMs) {
+            delay(POLL_INTERVAL_MS)
+            waited += POLL_INTERVAL_MS
+        }
+        return latestTiData
     }
 
     // Text input (RTI), ported from pyatv `api.py text_input_command`
@@ -180,15 +215,24 @@ class CompanionClient(
     suspend fun textClear(): String? = textInputCommand("", clearPreviousInput = true)
 
     /**
-     * Send a text-input command. The RTI session is restarted first
-     * (`_tiStop` + `_tiStart`) to get a fresh session UUID and the current
-     * text. Returns the resulting text, or null when no field is focused
-     * (a graceful no-op).
+     * Send a text-input command against the focused field. Uses the `_tiD`
+     * cached from the latest `_tiStarted` event (the session UUID lives
+     * there on real hardware); if none is cached yet, tries one `_tiStart`
+     * in case the field was focused before we connected. Returns the
+     * resulting text, or null when no field is focused (a graceful no-op).
+     *
+     * NB: unlike pyatv this does NOT `_tiStop`+`_tiStart` on every call —
+     * that tears down the RTI session on this hardware and loses the
+     * sessionUUID (docs/protocol-notes.md).
      */
     suspend fun textInputCommand(text: String, clearPreviousInput: Boolean): String? {
-        textInputStop()
-        val content = textInputStart()
-        val tiData = content["_tiD"] as? ByteArray ?: return null
+        // The session UUID comes from the `_tiD` cached out of a `_tiStarted`
+        // event (the authoritative source on tvOS). If we have not seen one
+        // yet, try a `_tiStart` in case the field was focused before we
+        // connected (pyatv-style devices answer with `_tiD`), then wait
+        // briefly for either path to populate the cache.
+        if (latestTiData == null) textInputStart()
+        val tiData = waitForTiData(FOCUS_WAIT_MS) ?: return null
 
         val properties = KeyedArchiver.readArchiveProperties(
             tiData,
@@ -358,5 +402,7 @@ class CompanionClient(
         private const val SERVICE_TYPE = "com.apple.tvremoteservices"
         private const val TOUCH_DELAY_MS = 16L
         private const val TOUCH_DELAY_NS = 16.0 * 1_000_000
+        private const val FOCUS_WAIT_MS = 1500L
+        private const val POLL_INTERVAL_MS = 30L
     }
 }

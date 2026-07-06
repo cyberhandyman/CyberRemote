@@ -10,6 +10,8 @@ import dev.companionremote.protocol.hap.PairVerify
 import dev.companionremote.protocol.transport.SocketTransport
 import dev.companionremote.protocol.transport.Transport
 import java.io.File
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 class Commands(private val options: Map<String, String>) {
 
@@ -42,6 +44,7 @@ class Commands(private val options: Map<String, String>) {
             "text-clear" -> textCommand { it.textClear() }
             "text-get" -> textCommand { it.textGet() }
             "focus-state" -> focusState()
+            "text-live" -> textLive(positional.firstOrNull() ?: fail("text required"))
             else -> fail("unknown command: $command")
         }
     }
@@ -103,12 +106,48 @@ class Commands(private val options: Map<String, String>) {
         }
     }
 
+    /**
+     * Keep the connection open, wait for a text field on the TV to gain
+     * focus (the `_tiStarted` event that carries the session UUID), then
+     * type [text]. This mirrors how the Android app works (long-lived
+     * connection), unlike the one-shot `text-set`.
+     */
+    private suspend fun textLive(text: String) {
+        withClient { client ->
+            println("connected — now focus a text field on the TV (e.g. a search box).")
+            println("waiting up to 60s for focus…")
+            val focused = kotlinx.coroutines.withTimeoutOrNull(60_000) {
+                client.keyboardFocus.first { it == dev.companionremote.protocol.client.KeyboardFocusState.Focused }
+                true
+            }
+            if (focused == null) {
+                println("no text field became focused — giving up")
+                return@withClient
+            }
+            println("focused! typing…")
+            val result = client.textSet(text)
+            if (result == null) {
+                println("could not type (session UUID not available)")
+            } else {
+                println("typed — TV field should now read: \"$result\"")
+            }
+            kotlinx.coroutines.delay(2000)
+        }
+    }
+
     private suspend fun focusState() {
         withClient { client ->
-            println("watching keyboard focus (Ctrl-C to stop)…")
+            println("watching keyboard focus + all events (Ctrl-C to stop)…")
             println("current state: ${client.keyboardFocus.value}")
-            client.keyboardFocus.collect { state ->
-                println("focus: $state")
+            kotlinx.coroutines.coroutineScope {
+                launch {
+                    client.events.collect { event ->
+                        println("event: ${event.name}  content-keys=${event.content.keys}")
+                    }
+                }
+                client.keyboardFocus.collect { state ->
+                    println("focus: $state")
+                }
             }
         }
     }

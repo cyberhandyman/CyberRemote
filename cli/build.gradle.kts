@@ -29,6 +29,10 @@ application {
     mainClass = "dev.companionremote.cli.MainKt"
 }
 
+tasks.named<JavaExec>("run") {
+    standardInput = System.`in`
+}
+
 tasks.test {
     useJUnitPlatform()
 }

@@ -159,8 +159,10 @@ class TextInputTest {
     @Test
     fun `keyboard focus state follows tiStarted and tiStopped events`() =
         runWithClient({ false }, { "" }) { client, atv ->
-            // After connect: _tiStart response had no _tiD → unfocused
-            assertEquals(KeyboardFocusState.Unfocused, client.keyboardFocus.value)
+            // After connect with an empty _tiStart response, focus is Unknown
+            // (an empty _c must NOT be read as Unfocused — real devices send
+            // empty responses even while focused; see protocol-notes).
+            assertEquals(KeyboardFocusState.Unknown, client.keyboardFocus.value)
 
             atv.pushEvent("_tiStarted", mapOf("_tiD" to tiStartArchive("")))
             waitUntil { client.keyboardFocus.value == KeyboardFocusState.Focused }
