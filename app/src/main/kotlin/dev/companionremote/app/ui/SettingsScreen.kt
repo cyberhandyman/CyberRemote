@@ -32,6 +32,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -57,6 +58,7 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(viewModel: AppViewModel) {
     val s = LocalAppStrings.current
     val language by viewModel.language.collectAsState()
+    val fetchIcons by viewModel.fetchAppIcons.collectAsState()
     val paired by viewModel.pairedDevices.collectAsState()
     val clipboard = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -87,6 +89,25 @@ fun SettingsScreen(viewModel: AppViewModel) {
                 LanguageRow(s.languageSystem, language == AppLanguage.System) { viewModel.setLanguage(AppLanguage.System) }
                 LanguageRow(s.languageEnglish, language == AppLanguage.English) { viewModel.setLanguage(AppLanguage.English) }
                 LanguageRow(s.languageChinese, language == AppLanguage.Chinese) { viewModel.setLanguage(AppLanguage.Chinese) }
+            }
+
+            // App icons (network opt-in)
+            SectionTitle(s.tabApps)
+            SettingsCard {
+                Row(
+                    Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f).padding(end = 12.dp)) {
+                        Text(s.appIcons, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                        Text(
+                            s.appIconsDesc,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = fetchIcons, onCheckedChange = { viewModel.setFetchAppIcons(it) })
+                }
             }
 
             // Paired Apple TVs

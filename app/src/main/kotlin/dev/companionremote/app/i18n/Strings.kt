@@ -66,6 +66,8 @@ data class AppStrings(
     val emailCopied: String,
     val about: String,
     val aboutText: String,
+    val appIcons: String,
+    val appIconsDesc: String,
 )
 
 val EnglishStrings = AppStrings(
@@ -119,6 +121,8 @@ val EnglishStrings = AppStrings(
     emailCopied = "Email copied to clipboard",
     about = "About",
     aboutText = "An open-source Apple TV remote. Not affiliated with Apple Inc.",
+    appIcons = "Fetch real app icons",
+    appIconsDesc = "Load real icons from the App Store. This makes network requests to Apple's servers — off by default so the app stays fully local (only talks to your Apple TV).",
 )
 
 val ChineseStrings = AppStrings(
@@ -172,6 +176,8 @@ val ChineseStrings = AppStrings(
     emailCopied = "邮箱已复制到剪贴板",
     about = "关于",
     aboutText = "一个开源的 Apple TV 遥控器。与 Apple Inc. 无关。",
+    appIcons = "获取真实应用图标",
+    appIconsDesc = "从 App Store 加载真实图标。这会向 Apple 服务器发起网络请求——默认关闭，以保持应用完全本地化（只与你的 Apple TV 通信）。",
 )
 
 /** The developer's feedback email. */

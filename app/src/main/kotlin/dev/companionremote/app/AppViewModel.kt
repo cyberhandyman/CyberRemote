@@ -64,6 +64,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** Language choice (persisted); drives the UI strings. */
     val language = MutableStateFlow(AppLanguage.System)
 
+    /** Whether to fetch real app icons over the network (opt-in). */
+    val fetchAppIcons = MutableStateFlow(false)
+
     /** Paired device names, shown in Settings for management. */
     val pairedDevices = MutableStateFlow<List<String>>(emptyList())
 
@@ -101,6 +104,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 strings = resolveStrings(lang, currentSystemLanguage())
             }
         }
+        viewModelScope.launch {
+            settingsRepository.fetchAppIcons.collect { fetchAppIcons.value = it }
+        }
         startScan()
     }
 
@@ -108,6 +114,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setLanguage(lang: AppLanguage) {
         viewModelScope.launch { settingsRepository.setLanguage(lang) }
+    }
+
+    fun setFetchAppIcons(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setFetchAppIcons(enabled) }
     }
 
     fun openSettings() {

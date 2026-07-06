@@ -62,8 +62,14 @@ reading the current text; replacing/typing still works.
 
 **Why does the app need the multicast permission?**
 `CHANGE_WIFI_MULTICAST_STATE` is required for mDNS discovery on Android;
-without a multicast lock the scan silently finds nothing. The app makes no
-network connections other than to your Apple TV.
+without a multicast lock the scan silently finds nothing. By default the app
+makes no network connections other than to your Apple TV.
+
+The **one** exception is entirely optional and **off by default**: if you
+turn on *Settings → Fetch real app icons*, the Apps grid will call Apple's
+public iTunes lookup/search API to load real artwork (cached on disk). Leave
+it off to keep the app fully local — the Apps grid then shows generated
+initial tiles and makes no outside requests.
 
 **Now playing info / artwork?**
 Not in v1 — that needs a different protocol (MRP over AirPlay 2). Planned

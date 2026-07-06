@@ -114,6 +114,48 @@ private fun appTileColor(key: String): Color {
 private fun appInitial(name: String): String =
     name.trim().firstOrNull()?.toString()?.uppercase() ?: "?"
 
+/**
+ * An app tile icon: a generated initial+colour tile by default, or the real
+ * App Store artwork when the user has opted into network fetching.
+ */
+@Composable
+private fun AppIcon(bundleId: String, name: String, fetchIcons: Boolean) {
+    val shape = RoundedCornerShape(12.dp)
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val artwork by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(
+        initialValue = null,
+        key1 = bundleId,
+        key2 = fetchIcons,
+    ) {
+        value = if (fetchIcons) {
+            dev.companionremote.app.data.AppIconFetcher.fetch(context, bundleId, name)
+        } else {
+            null
+        }
+    }
+
+    val current = artwork
+    if (current != null) {
+        androidx.compose.foundation.Image(
+            bitmap = current,
+            contentDescription = name,
+            modifier = Modifier.size(44.dp).clip(shape),
+        )
+    } else {
+        Box(
+            Modifier.size(44.dp).clip(shape).background(appTileColor(bundleId)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                appInitial(name),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF0B0E13),
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun RemoteScreen(viewModel: AppViewModel, device: DiscoveredAtv) {
@@ -589,6 +631,7 @@ private fun TouchpadPane(viewModel: AppViewModel, press: (HidCommand) -> Unit, h
 private fun AppsPane(viewModel: AppViewModel) {
     val apps by viewModel.apps.collectAsState()
     val error by viewModel.appsError.collectAsState()
+    val fetchIcons by viewModel.fetchAppIcons.collectAsState()
     when {
         error != null -> Column(
             Modifier.fillMaxSize().padding(32.dp),
@@ -613,18 +656,7 @@ private fun AppsPane(viewModel: AppViewModel) {
                     shape = RoundedCornerShape(18.dp),
                 ) {
                     Column(Modifier.padding(16.dp)) {
-                        Box(
-                            Modifier.size(44.dp).clip(RoundedCornerShape(12.dp))
-                                .background(appTileColor(bundleId)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                appInitial(name),
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF0B0E13),
-                            )
-                        }
+                        AppIcon(bundleId = bundleId, name = name, fetchIcons = fetchIcons)
                         Spacer(Modifier.height(12.dp))
                         Text(name, style = MaterialTheme.typography.titleSmall, maxLines = 2, fontWeight = FontWeight.Medium)
                     }
