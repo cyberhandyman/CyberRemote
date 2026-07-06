@@ -191,7 +191,14 @@ fun RemoteScreen(viewModel: AppViewModel, device: DiscoveredAtv) {
             }
 
             when (tab) {
-                0 -> DpadPane(::press) { keyboardOpen = !keyboardOpen }
+                0 -> DpadPane(
+                    press = ::press,
+                    onOk = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        viewModel.touchTap()
+                    },
+                    toggleKeyboard = { keyboardOpen = !keyboardOpen },
+                )
                 1 -> TouchpadPane(viewModel, ::press)
                 2 -> AppsPane(viewModel)
             }
@@ -200,7 +207,7 @@ fun RemoteScreen(viewModel: AppViewModel, device: DiscoveredAtv) {
 }
 
 @Composable
-private fun DpadPane(press: (HidCommand) -> Unit, toggleKeyboard: () -> Unit) {
+private fun DpadPane(press: (HidCommand) -> Unit, onOk: () -> Unit, toggleKeyboard: () -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
@@ -227,7 +234,10 @@ private fun DpadPane(press: (HidCommand) -> Unit, toggleKeyboard: () -> Unit) {
                 press(HidCommand.Right)
             }
             FilledTonalIconButton(
-                onClick = { press(HidCommand.Select) },
+                // Use the touchpad tap (adds the _hidT Click event); a bare
+                // _hidC select is misread as a long-press on the tvOS home
+                // screen (real-device finding).
+                onClick = onOk,
                 modifier = Modifier.align(Alignment.Center).size(88.dp),
             ) {
                 Text("OK", style = MaterialTheme.typography.titleMedium)

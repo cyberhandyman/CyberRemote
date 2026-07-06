@@ -245,6 +245,23 @@ on hardware that differ from — or refine — the pyatv-derived notes above.
   M3 fails with "connection closed" before it is even sent. Not a protocol
   bug — just enter the PIN quickly (the cli reads it on stdin).
 
+### "Select" as a click needs the `_hidT` Click event — a bare `_hidC` select long-presses
+
+On the tvOS home screen a plain `_hidC` select (down then up) is registered
+as a **long-press** (pops the icon edit / jiggle menu), regardless of the
+down→up timing — tried three ways (await both, fire-and-forget both,
+fire-down/await-up), all long-press. What works as a clean single tap is
+pyatv's `click` shape (`api.py CompanionAPI.click`): `_hidC` select down,
+~20 ms, `_hidC` select up, then a **`_hidT` touch event with phase Click**
+(`_tPh=5`) at (1000, 1000). The trailing touch event is what makes tvOS
+treat it as a tap. Verified on device: `tap` (this shape) opens the
+highlighted item cleanly.
+
+Therefore the "OK/select-to-open" action uses the tap shape, not a bare
+`_hidC` select: cli `command select` routes to `tap`, and the app's centre
+OK button calls `touchTap()`. A bare `_hidC` select is still available via
+`pressButton(Select)` for callers that specifically want the key.
+
 ### RTI text-input focus — the `_tiD` session UUID comes from the EVENT, not the response
 
 This is the significant real-device deviation from pyatv's flow.

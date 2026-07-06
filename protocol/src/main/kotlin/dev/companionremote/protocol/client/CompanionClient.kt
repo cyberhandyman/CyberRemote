@@ -277,7 +277,7 @@ class CompanionClient(
 
     // Buttons
 
-    /** Send a single HID button state change (down or up). */
+    /** Send a single HID button state change (down or up), awaiting the ack. */
     suspend fun hidCommand(down: Boolean, command: HidCommand) {
         sendRequest(
             "_hidC",
@@ -285,10 +285,28 @@ class CompanionClient(
         )
     }
 
-    /** A full button press: down then up. */
+    /**
+     * A full button press. The `down` is fired **without** awaiting its ack
+     * (awaiting it adds a round-trip to the down→up gap, which the tvOS home
+     * screen misreads as a long-press → icon-edit mode). The `up` **is**
+     * awaited, so a caller that disconnects right after — like the cli's
+     * one-shot commands — cannot tear the connection down before the release
+     * reaches the device (which would also read as a long-press).
+     */
     suspend fun pressButton(command: HidCommand) {
-        hidCommand(true, command)
+        sendHidNoWait(true, command)
         hidCommand(false, command)
+    }
+
+    private suspend fun sendHidNoWait(down: Boolean, command: HidCommand) {
+        connection.sendOpack(
+            FrameType.E_OPACK,
+            mapOf(
+                "_i" to "_hidC",
+                "_t" to MessageType.REQUEST,
+                "_c" to linkedMapOf("_hBtS" to if (down) 1L else 2L, "_hidC" to command.code),
+            ),
+        )
     }
 
     /** Wake the device (single up event, like pyatv `CompanionPower.turn_on`). */

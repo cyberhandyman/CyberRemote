@@ -64,10 +64,11 @@ Verified 2026-07-06 against an Apple TV 4K (AppleTV14,1) at 192.168.50.173.
 
 1. ✅ `cli pair` → PIN on TV, pairing completes, creds written (M3).
 2. ✅ `cli verify` reconnect with stored creds; session keys derived (M3).
-3. ✅ Buttons visibly work — home, arrows, select, menu, volume_up all
-   confirmed on screen; `power` returned Awake; `apps` returned the full app
-   map; `launch` opened the App Store (M4). ⏳ wake/sleep not yet exercised
-   (same `_hidC` path).
+3. ✅ Buttons visibly work — home, arrows, select (via tap), menu, volume_up,
+   and sleep→wake all confirmed on screen; `power` returned Awake; `apps`
+   returned the full app map; `launch` opened the App Store (M4). Port did
+   not change across a sleep/wake cycle. Home-screen select long-press found
+   and fixed (routes to tap; see below).
 4. ⏳ App discovery/pairing/daily-drive — APK builds; not yet run on a phone
    (M5).
 5. ✅ Keyboard: focus event detection confirmed (`_tiStarted`/`_tiStopped`);
@@ -116,10 +117,11 @@ Verified 2026-07-06 against an Apple TV 4K (AppleTV14,1) at 192.168.50.173.
   without mDNS, manual IP entry is the only path.
 - FetchLaunchableApplicationsEvent may require user-account permissions on
   multi-user tvOS; error path surfaces the device's `_em` string.
-- Observed on device: a `select` press on the home screen occasionally
-  registers as a long-press (enters icon-edit / jiggle mode). `pressButton`
-  sends `_hidC` down then up as two separate encrypted round-trips, so the
-  down→up gap is one RTT; the home screen's edit-mode threshold is low
-  enough that this can trip it. Possible fix: fire the down event without
-  awaiting its response before sending up (fire-and-forget down), or add a
-  tiny fixed gap only — untested. Navigation/select inside apps was fine.
+- RESOLVED on device: a home-screen `select` long-presses (icon-edit mode)
+  no matter the down→up timing — it needs the trailing `_hidT` Click touch
+  event (pyatv's `click` shape). "Select to open" now routes to `tap()`
+  everywhere (cli `command select`, app OK button). See protocol-notes
+  "Select as a click". `pressButton(Select)` (bare key) is still available.
+  `pressButton` also changed to fire the down event without awaiting its ack
+  (up is still awaited so a one-shot cli command doesn't disconnect before
+  the release lands) — direction keys still confirmed working after this.

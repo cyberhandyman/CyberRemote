@@ -50,6 +50,14 @@ class Commands(private val options: Map<String, String>) {
     }
 
     private suspend fun button(name: String) {
+        // "select" as a click uses the touchpad tap (adds the _hidT Click
+        // event); a bare _hidC select is misread as a long-press on the tvOS
+        // home screen (real-device finding, see docs/protocol-notes.md).
+        if (name.lowercase() == "select") {
+            withClient { it.tap() }
+            println("select (tap) sent")
+            return
+        }
         val command = when (name.lowercase()) {
             "up" -> HidCommand.Up
             "down" -> HidCommand.Down
