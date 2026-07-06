@@ -48,6 +48,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.companionremote.app.AppViewModel
+import dev.companionremote.app.data.ThemeMode
 import dev.companionremote.app.i18n.AppLanguage
 import dev.companionremote.app.i18n.FEEDBACK_EMAIL
 import dev.companionremote.app.i18n.LocalAppStrings
@@ -58,6 +59,7 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(viewModel: AppViewModel) {
     val s = LocalAppStrings.current
     val language by viewModel.language.collectAsState()
+    val themeMode by viewModel.themeMode.collectAsState()
     val fetchIcons by viewModel.fetchAppIcons.collectAsState()
     val paired by viewModel.pairedDevices.collectAsState()
     val clipboard = LocalClipboardManager.current
@@ -83,12 +85,20 @@ fun SettingsScreen(viewModel: AppViewModel) {
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
         ) {
+            // Appearance
+            SectionTitle(s.theme)
+            SettingsCard {
+                OptionRow(s.themeSystem, themeMode == ThemeMode.System) { viewModel.setThemeMode(ThemeMode.System) }
+                OptionRow(s.themeLight, themeMode == ThemeMode.Light) { viewModel.setThemeMode(ThemeMode.Light) }
+                OptionRow(s.themeDark, themeMode == ThemeMode.Dark) { viewModel.setThemeMode(ThemeMode.Dark) }
+            }
+
             // Language
             SectionTitle(s.language)
             SettingsCard {
-                LanguageRow(s.languageSystem, language == AppLanguage.System) { viewModel.setLanguage(AppLanguage.System) }
-                LanguageRow(s.languageEnglish, language == AppLanguage.English) { viewModel.setLanguage(AppLanguage.English) }
-                LanguageRow(s.languageChinese, language == AppLanguage.Chinese) { viewModel.setLanguage(AppLanguage.Chinese) }
+                OptionRow(s.languageSystem, language == AppLanguage.System) { viewModel.setLanguage(AppLanguage.System) }
+                OptionRow(s.languageEnglish, language == AppLanguage.English) { viewModel.setLanguage(AppLanguage.English) }
+                OptionRow(s.languageChinese, language == AppLanguage.Chinese) { viewModel.setLanguage(AppLanguage.Chinese) }
             }
 
             // App icons (network opt-in)
@@ -221,7 +231,7 @@ private fun SettingsCard(content: @Composable androidx.compose.foundation.layout
 }
 
 @Composable
-private fun LanguageRow(label: String, selected: Boolean, onSelect: () -> Unit) {
+private fun OptionRow(label: String, selected: Boolean, onSelect: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().selectable(selected = selected, onClick = onSelect)
             .padding(horizontal = 16.dp, vertical = 4.dp),

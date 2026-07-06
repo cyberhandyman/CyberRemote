@@ -46,6 +46,7 @@ import androidx.compose.material.icons.rounded.KeyboardReturn
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -58,6 +59,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
@@ -175,6 +177,7 @@ fun RemoteScreen(viewModel: AppViewModel, device: DiscoveredAtv) {
     fun press(command: HidCommand) { tap(); viewModel.pressButton(command) }
     fun hold(command: HidCommand) { tap(); viewModel.holdButton(command) }
     fun ok() { tap(); viewModel.touchTap() }
+    fun okLong() { tap(); viewModel.holdButton(HidCommand.Select) }
 
     LaunchedEffect(focusState) {
         when (focusState) {
@@ -220,6 +223,9 @@ fun RemoteScreen(viewModel: AppViewModel, device: DiscoveredAtv) {
                     }
                 },
                 actions = {
+                    IconButton(onClick = { viewModel.openSettings() }) {
+                        Icon(Icons.Rounded.Settings, contentDescription = s.settings)
+                    }
                     IconButton(onClick = { powerMenu = true }) {
                         Icon(Icons.Rounded.PowerSettingsNew, contentDescription = "Power")
                     }
@@ -254,14 +260,14 @@ fun RemoteScreen(viewModel: AppViewModel, device: DiscoveredAtv) {
                 // actually up (stealing screen space). If it's dismissed, keep
                 // the full remote so it doesn't look cramped.
                 if (imeVisible) {
-                    CompactRemote(press = ::press, hold = ::hold, ok = ::ok)
+                    CompactRemote(press = ::press, hold = ::hold, ok = ::ok, okLong = ::okLong)
                 } else {
-                    DpadPane(press = ::press, hold = ::hold, ok = ::ok, openKeyboard = { softKeyboard?.show() })
+                    DpadPane(press = ::press, hold = ::hold, ok = ::ok, okLong = ::okLong, openKeyboard = { softKeyboard?.show() })
                 }
             } else {
                 when (tab) {
-                    0 -> DpadPane(press = ::press, hold = ::hold, ok = ::ok) { keyboardOpen = true }
-                    1 -> TouchpadPane(viewModel, ::press, ::hold)
+                    0 -> DpadPane(press = ::press, hold = ::hold, ok = ::ok, okLong = ::okLong) { keyboardOpen = true }
+                    1 -> TouchpadPane(viewModel, ::press, ::hold, ok = ::ok, okLong = ::okLong) { keyboardOpen = true }
                     2 -> AppsPane(viewModel)
                 }
             }
@@ -378,13 +384,14 @@ private fun DpadPane(
     press: (HidCommand) -> Unit,
     hold: (HidCommand) -> Unit,
     ok: () -> Unit,
+    okLong: () -> Unit,
     openKeyboard: () -> Unit,
 ) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        DpadDial(press = press, ok = ok)
+        DpadDial(press = press, ok = ok, okLong = okLong)
         Spacer(Modifier.height(32.dp))
         Row(
             Modifier.fillMaxWidth(),
@@ -406,9 +413,10 @@ private fun DpadPane(
     }
 }
 
-/** The large circular D-pad with a centre OK. */
+/** The large circular D-pad with a centre OK (tap = select, hold = menu). */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun DpadDial(press: (HidCommand) -> Unit, ok: () -> Unit) {
+private fun DpadDial(press: (HidCommand) -> Unit, ok: () -> Unit, okLong: () -> Unit) {
     Box(
         Modifier
             .fillMaxWidth(0.86f)
@@ -423,10 +431,10 @@ private fun DpadDial(press: (HidCommand) -> Unit, ok: () -> Unit) {
         DialArrow(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "Left", Modifier.align(Alignment.CenterStart)) { press(HidCommand.Left) }
         DialArrow(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "Right", Modifier.align(Alignment.CenterEnd)) { press(HidCommand.Right) }
         Surface(
-            onClick = ok,
             shape = CircleShape,
             color = MaterialTheme.colorScheme.primaryContainer,
-            modifier = Modifier.size(96.dp),
+            modifier = Modifier.size(96.dp).clip(CircleShape)
+                .combinedClickable(onClick = ok, onLongClick = okLong),
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
@@ -478,11 +486,13 @@ private fun VolumePill(press: (HidCommand) -> Unit) {
  *   home        ←   [OK]   →         vol-
  *   play              ↓              back
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CompactRemote(
     press: (HidCommand) -> Unit,
     hold: (HidCommand) -> Unit,
     ok: () -> Unit,
+    okLong: () -> Unit,
 ) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
@@ -515,10 +525,10 @@ private fun CompactRemote(
             ) {
                 MiniKey(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "Left") { press(HidCommand.Left) }
                 Surface(
-                    onClick = ok,
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.size(56.dp),
+                    modifier = Modifier.size(56.dp).clip(CircleShape)
+                        .combinedClickable(onClick = ok, onLongClick = okLong),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
@@ -567,9 +577,18 @@ private fun MiniKey(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TouchpadPane(viewModel: AppViewModel, press: (HidCommand) -> Unit, hold: (HidCommand) -> Unit) {
+private fun TouchpadPane(
+    viewModel: AppViewModel,
+    press: (HidCommand) -> Unit,
+    hold: (HidCommand) -> Unit,
+    ok: () -> Unit,
+    okLong: () -> Unit,
+    openKeyboard: () -> Unit,
+) {
     val lastTouch = remember { mutableStateOf(500L to 500L) }
+    val hintColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.28f)
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Box(
             Modifier
@@ -578,7 +597,9 @@ private fun TouchpadPane(viewModel: AppViewModel, press: (HidCommand) -> Unit, h
                 .clip(RoundedCornerShape(28.dp))
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(28.dp))
-                .pointerInput(Unit) { detectTapGestures(onTap = { viewModel.touchTap() }) }
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { viewModel.touchTap() }, onLongPress = { viewModel.holdButton(HidCommand.Select) })
+                }
                 .pointerInput(Unit) {
                     detectDragGestures(
                         onDragStart = { offset ->
@@ -606,6 +627,11 @@ private fun TouchpadPane(viewModel: AppViewModel, press: (HidCommand) -> Unit, h
                 },
             contentAlignment = Alignment.Center,
         ) {
+            // Faint directional hints around the edges.
+            Icon(Icons.Rounded.KeyboardArrowUp, null, Modifier.align(Alignment.TopCenter).padding(8.dp).size(28.dp), tint = hintColor)
+            Icon(Icons.Rounded.KeyboardArrowDown, null, Modifier.align(Alignment.BottomCenter).padding(8.dp).size(28.dp), tint = hintColor)
+            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, null, Modifier.align(Alignment.CenterStart).padding(8.dp).size(28.dp), tint = hintColor)
+            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, Modifier.align(Alignment.CenterEnd).padding(8.dp).size(28.dp), tint = hintColor)
             Text(
                 LocalAppStrings.current.swipeHint,
                 textAlign = TextAlign.Center,
@@ -614,24 +640,60 @@ private fun TouchpadPane(viewModel: AppViewModel, press: (HidCommand) -> Unit, h
             )
         }
         Spacer(Modifier.height(16.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            RoundKey(Icons.AutoMirrored.Filled.ArrowBack, "Back", onClick = { press(HidCommand.Menu) })
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            RoundKey(Icons.AutoMirrored.Filled.ArrowBack, "Back", size = 50.dp, onClick = { press(HidCommand.Menu) })
             RoundKey(
                 Icons.Rounded.Home,
                 "Home (hold: Control Center)",
+                size = 50.dp,
                 onClick = { press(HidCommand.Home) },
                 onLongClick = { hold(HidCommand.Home) },
             )
-            RoundKey(Icons.Rounded.PlayArrow, "Play/Pause", onClick = { press(HidCommand.PlayPause) })
+            RoundKey(Icons.Rounded.PlayArrow, "Play/Pause", size = 50.dp, onClick = { press(HidCommand.PlayPause) })
+            RoundKey(Icons.Rounded.Keyboard, "Keyboard", size = 50.dp, onClick = openKeyboard)
+            RoundKey(Icons.Rounded.Remove, "Volume down", size = 50.dp, onClick = { press(HidCommand.VolumeDown) })
+            RoundKey(Icons.Rounded.Add, "Volume up", size = 50.dp, onClick = { press(HidCommand.VolumeUp) })
         }
     }
 }
 
 @Composable
 private fun AppsPane(viewModel: AppViewModel) {
+    val s = LocalAppStrings.current
     val apps by viewModel.apps.collectAsState()
     val error by viewModel.appsError.collectAsState()
     val fetchIcons by viewModel.fetchAppIcons.collectAsState()
+    Column(Modifier.fillMaxSize()) {
+        // Quick toggle for real icons (also in Settings).
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                s.appIcons,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            Switch(checked = fetchIcons, onCheckedChange = { viewModel.setFetchAppIcons(it) })
+        }
+        Box(Modifier.fillMaxSize()) {
+            AppsGrid(viewModel, apps, error, fetchIcons)
+        }
+    }
+}
+
+@Composable
+private fun AppsGrid(
+    viewModel: AppViewModel,
+    apps: List<Pair<String, String>>?,
+    error: String?,
+    fetchIcons: Boolean,
+) {
     when {
         error != null -> Column(
             Modifier.fillMaxSize().padding(32.dp),
@@ -672,6 +734,7 @@ private fun AppsPane(viewModel: AppViewModel) {
 private fun RoundKey(
     icon: ImageVector,
     label: String,
+    size: androidx.compose.ui.unit.Dp = 60.dp,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
 ) {
@@ -679,12 +742,12 @@ private fun RoundKey(
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = Modifier
-            .size(60.dp)
+            .size(size)
             .clip(CircleShape)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = label, Modifier.size(26.dp))
+            Icon(icon, contentDescription = label, Modifier.size(size * 0.42f))
         }
     }
 }

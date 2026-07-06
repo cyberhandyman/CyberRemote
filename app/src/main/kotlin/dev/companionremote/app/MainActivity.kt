@@ -14,6 +14,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.CompositionLocalProvider
+import dev.companionremote.app.data.ThemeMode
 import dev.companionremote.app.i18n.LocalAppStrings
 import dev.companionremote.app.i18n.currentSystemLanguage
 import dev.companionremote.app.i18n.resolveStrings
@@ -29,7 +30,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            CompanionTheme {
+            val themeMode by viewModel.themeMode.collectAsState()
+            CompanionTheme(themeMode) {
                 val screen by viewModel.screen.collectAsState()
                 val language by viewModel.language.collectAsState()
                 val strings = resolveStrings(language, currentSystemLanguage())
@@ -104,9 +106,14 @@ private val LightColors = lightColorScheme(
 )
 
 @Composable
-fun CompanionTheme(content: @Composable () -> Unit) {
+fun CompanionTheme(themeMode: ThemeMode, content: @Composable () -> Unit) {
+    val dark = when (themeMode) {
+        ThemeMode.System -> isSystemInDarkTheme()
+        ThemeMode.Light -> false
+        ThemeMode.Dark -> true
+    }
     MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) DarkColors else LightColors,
+        colorScheme = if (dark) DarkColors else LightColors,
         content = content,
     )
 }

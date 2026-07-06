@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.companionremote.app.data.CredentialsRepository
 import dev.companionremote.app.data.SettingsRepository
+import dev.companionremote.app.data.ThemeMode
 import dev.companionremote.app.discovery.AtvDiscovery
 import dev.companionremote.app.discovery.DiscoveredAtv
 import dev.companionremote.app.i18n.AppLanguage
@@ -64,8 +65,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** Language choice (persisted); drives the UI strings. */
     val language = MutableStateFlow(AppLanguage.System)
 
+    /** Theme mode (persisted). */
+    val themeMode = MutableStateFlow(ThemeMode.System)
+
     /** Whether to fetch real app icons over the network (opt-in). */
     val fetchAppIcons = MutableStateFlow(false)
+
+    // Where to return when leaving Settings (device list or the remote).
+    private var settingsReturnTo: Screen = Screen.DeviceList
 
     /** Paired device names, shown in Settings for management. */
     val pairedDevices = MutableStateFlow<List<String>>(emptyList())
@@ -105,6 +112,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         viewModelScope.launch {
+            settingsRepository.themeMode.collect { themeMode.value = it }
+        }
+        viewModelScope.launch {
             settingsRepository.fetchAppIcons.collect { fetchAppIcons.value = it }
         }
         startScan()
@@ -116,11 +126,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { settingsRepository.setLanguage(lang) }
     }
 
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch { settingsRepository.setThemeMode(mode) }
+    }
+
     fun setFetchAppIcons(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.setFetchAppIcons(enabled) }
     }
 
     fun openSettings() {
+        settingsReturnTo = screen.value
         viewModelScope.launch {
             pairedDevices.value = credentialsRepository.pairedDeviceNames().sorted()
             screen.value = Screen.Settings
@@ -128,7 +143,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun closeSettings() {
-        screen.value = Screen.DeviceList
+        // Return to wherever Settings was opened from (device list or remote).
+        screen.value = settingsReturnTo
     }
 
     fun forgetDeviceByName(name: String) {

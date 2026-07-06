@@ -68,6 +68,10 @@ data class AppStrings(
     val aboutText: String,
     val appIcons: String,
     val appIconsDesc: String,
+    val theme: String,
+    val themeSystem: String,
+    val themeLight: String,
+    val themeDark: String,
 )
 
 val EnglishStrings = AppStrings(
@@ -123,6 +127,10 @@ val EnglishStrings = AppStrings(
     aboutText = "An open-source Apple TV remote. Not affiliated with Apple Inc.",
     appIcons = "Fetch real app icons",
     appIconsDesc = "Load real icons from the App Store. This makes network requests to Apple's servers — off by default so the app stays fully local (only talks to your Apple TV).",
+    theme = "Appearance",
+    themeSystem = "Follow system",
+    themeLight = "Light",
+    themeDark = "Dark",
 )
 
 val ChineseStrings = AppStrings(
@@ -178,6 +186,10 @@ val ChineseStrings = AppStrings(
     aboutText = "一个开源的 Apple TV 遥控器。与 Apple Inc. 无关。",
     appIcons = "获取真实应用图标",
     appIconsDesc = "从 App Store 加载真实图标。这会向 Apple 服务器发起网络请求——默认关闭，以保持应用完全本地化（只与你的 Apple TV 通信）。",
+    theme = "外观",
+    themeSystem = "跟随系统",
+    themeLight = "白天",
+    themeDark = "夜间",
 )
 
 /** The developer's feedback email. */
