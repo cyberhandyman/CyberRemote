@@ -49,10 +49,21 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Keyboard
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import dev.companionremote.app.AppViewModel
 import dev.companionremote.app.ConnectionState
 import dev.companionremote.app.discovery.DiscoveredAtv
 import dev.companionremote.protocol.client.HidCommand
+import dev.companionremote.protocol.client.KeyboardFocusState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -106,8 +117,26 @@ fun RemoteScreen(viewModel: AppViewModel, device: DiscoveredAtv) {
             )
         },
     ) { padding ->
+        val focusState by viewModel.keyboardFocus.collectAsState()
+        val keyboardText by viewModel.keyboardText.collectAsState()
+        var keyboardOpen by remember { mutableStateOf(false) }
+
+        // Auto-open when a text field gains focus on the TV, close on blur
+        LaunchedEffect(focusState) {
+            when (focusState) {
+                KeyboardFocusState.Focused -> keyboardOpen = true
+                KeyboardFocusState.Unfocused -> keyboardOpen = false
+                KeyboardFocusState.Unknown -> Unit
+            }
+        }
+
         Column(
-            Modifier.fillMaxSize().padding(padding).padding(24.dp),
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .imePadding()
+                .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (connectionState == ConnectionState.Disconnected) {
@@ -115,6 +144,35 @@ fun RemoteScreen(viewModel: AppViewModel, device: DiscoveredAtv) {
                     action = { TextButton(onClick = { viewModel.reconnect() }) { Text("Reconnect") } },
                 ) {
                     Text(connectionError ?: "Connection lost")
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+
+            if (keyboardOpen) {
+                val focusRequester = remember { FocusRequester() }
+                val softKeyboard = LocalSoftwareKeyboardController.current
+                OutlinedTextField(
+                    value = keyboardText,
+                    onValueChange = viewModel::onKeyboardTextChanged,
+                    modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+                    label = {
+                        Text(
+                            if (focusState == KeyboardFocusState.Focused) "Typing on ${device.name}"
+                            else "No text field focused on the TV",
+                        )
+                    },
+                    enabled = focusState == KeyboardFocusState.Focused,
+                    trailingIcon = {
+                        IconButton(onClick = { viewModel.clearKeyboardText() }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Clear TV text")
+                        }
+                    },
+                )
+                LaunchedEffect(keyboardOpen, focusState) {
+                    if (focusState == KeyboardFocusState.Focused) {
+                        focusRequester.requestFocus()
+                        softKeyboard?.show()
+                    }
                 }
                 Spacer(Modifier.height(16.dp))
             }
@@ -156,6 +214,7 @@ fun RemoteScreen(viewModel: AppViewModel, device: DiscoveredAtv) {
                 RemoteKey(Icons.AutoMirrored.Filled.ArrowBack, "Back") { press(HidCommand.Menu) }
                 RemoteKey(Icons.Default.Home, "Home") { press(HidCommand.Home) }
                 RemoteKey(Icons.Default.PlayArrow, "Play/Pause") { press(HidCommand.PlayPause) }
+                RemoteKey(Icons.Default.Keyboard, "Keyboard") { keyboardOpen = !keyboardOpen }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     RemoteKey(Icons.Default.Add, "Volume up") { press(HidCommand.VolumeUp) }
                     Spacer(Modifier.height(12.dp))

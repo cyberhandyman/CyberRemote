@@ -49,6 +49,22 @@ class FakeAtv(private val pin: String) {
     /** Decrypted E_OPACK events (`_t` = 1) in arrival order. */
     val eventLog = mutableListOf<Map<Any?, Any?>>()
 
+    /** Wired up by [FakeAtvTransport] so the device can push frames. */
+    var pushSink: ((ByteArray) -> Unit)? = null
+
+    /** Push an unsolicited event to the client (e.g. `_tiStarted`). */
+    fun pushEvent(name: String, content: Map<String, Any?>) {
+        val sink = pushSink ?: error("no transport attached")
+        var payload = Opack.pack(mapOf("_i" to name, "_t" to 1L, "_c" to content))
+        val cipher = sessionCipher
+        var header = frameHeader(FrameType.E_OPACK, payload.size)
+        if (cipher != null && payload.isNotEmpty()) {
+            header = frameHeader(FrameType.E_OPACK, payload.size + 16)
+            payload = cipher.encrypt(payload, header)
+        }
+        sink(header + payload)
+    }
+
     private val n = HapSrpClient.N
     private val g = HapSrpClient.G
 
@@ -266,6 +282,10 @@ class FakeAtv(private val pin: String) {
 class FakeAtvTransport(private val atv: FakeAtv) : Transport {
     private val incoming = Channel<ByteArray>(Channel.UNLIMITED)
     private var readBuffer = ByteArray(0)
+
+    init {
+        atv.pushSink = { frame -> incoming.trySend(frame) }
+    }
 
     override suspend fun read(): ByteArray? {
         val result = incoming.receiveCatching()

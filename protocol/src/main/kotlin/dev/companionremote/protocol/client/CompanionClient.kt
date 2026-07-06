@@ -10,9 +10,18 @@ import dev.companionremote.protocol.crypto.Crypto
 import dev.companionremote.protocol.hap.HapCredentials
 import dev.companionremote.protocol.hap.PairVerify
 import dev.companionremote.protocol.hap.toHex
+import dev.companionremote.protocol.plist.KeyedArchiver
+import dev.companionremote.protocol.plist.RtiPayloads
 import kotlin.random.Random
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
 /**
  * High-level Companion client: pair-verify + encryption + the connect
@@ -36,15 +45,33 @@ class CompanionClient(
 
     private var touchBaseNanos: Long = System.nanoTime()
     private val subscribedEvents = mutableListOf<String>()
+    private val scope = CoroutineScope(Job() + Dispatchers.Default)
 
     /** Events pushed by the device. */
     val events: SharedFlow<CompanionEvent> get() = connection.events
+
+    private val _keyboardFocus = MutableStateFlow(KeyboardFocusState.Unknown)
+
+    /**
+     * Whether a text field is focused on the TV. Derived (like pyatv's
+     * `CompanionKeyboard`) from `_tiStarted`/`_tiStopped` events and the
+     * `_tiStart` response: focused ⇔ the payload contains `_tiD`.
+     */
+    val keyboardFocus: StateFlow<KeyboardFocusState> = _keyboardFocus
 
     /** Verify credentials, enable encryption and run the connect sequence. */
     suspend fun connect() {
         connection.start()
         val keys = PairVerify(connection, credentials).verify()
         connection.enableEncryption(CompanionSessionCipher(keys.outputKey, keys.inputKey))
+
+        scope.launch {
+            events.collect { event ->
+                if (event.name == "_tiStarted" || event.name == "_tiStopped") {
+                    updateKeyboardFocus(event.content)
+                }
+            }
+        }
 
         systemInfo()
         touchStart()
@@ -63,9 +90,13 @@ class CompanionClient(
             sendRequest("_tiStop", emptyMap())
         }
         connection.close()
+        scope.cancel()
     }
 
-    fun close() = connection.close()
+    fun close() {
+        connection.close()
+        scope.cancel()
+    }
 
     // Connect sequence steps
 
@@ -121,11 +152,67 @@ class CompanionClient(
         val response = sendRequest("_tiStart", emptyMap())
         val content = contentOf(response)
         textInputSession = content
+        updateKeyboardFocus(content)
         return content
     }
 
     internal suspend fun textInputStop() {
         sendRequest("_tiStop", emptyMap())
+    }
+
+    private fun updateKeyboardFocus(content: Map<Any?, Any?>) {
+        _keyboardFocus.value =
+            if ("_tiD" in content) KeyboardFocusState.Focused else KeyboardFocusState.Unfocused
+    }
+
+    // Text input (RTI), ported from pyatv `api.py text_input_command`
+
+    /** Current text of the focused field, or null if nothing is focused. */
+    suspend fun textGet(): String? = textInputCommand("", clearPreviousInput = false)
+
+    /** Replace the focused field's contents with [text]. */
+    suspend fun textSet(text: String): String? = textInputCommand(text, clearPreviousInput = true)
+
+    /** Insert [text] at the cursor. */
+    suspend fun textAppend(text: String): String? = textInputCommand(text, clearPreviousInput = false)
+
+    /** Clear the focused field. */
+    suspend fun textClear(): String? = textInputCommand("", clearPreviousInput = true)
+
+    /**
+     * Send a text-input command. The RTI session is restarted first
+     * (`_tiStop` + `_tiStart`) to get a fresh session UUID and the current
+     * text. Returns the resulting text, or null when no field is focused
+     * (a graceful no-op).
+     */
+    suspend fun textInputCommand(text: String, clearPreviousInput: Boolean): String? {
+        textInputStop()
+        val content = textInputStart()
+        val tiData = content["_tiD"] as? ByteArray ?: return null
+
+        val properties = KeyedArchiver.readArchiveProperties(
+            tiData,
+            listOf("sessionUUID"),
+            listOf("documentState", "docSt", "contextBeforeInput"),
+        )
+        val sessionUuid = properties[0] as? ByteArray ?: return null
+        var currentText = properties[1] as? String ?: ""
+
+        if (clearPreviousInput) {
+            sendEvent(
+                "_tiC",
+                mapOf("_tiV" to 1L, "_tiD" to RtiPayloads.clearTextPayload(sessionUuid)),
+            )
+            currentText = ""
+        }
+        if (text.isNotEmpty()) {
+            sendEvent(
+                "_tiC",
+                mapOf("_tiV" to 1L, "_tiD" to RtiPayloads.inputTextPayload(sessionUuid, text)),
+            )
+            currentText += text
+        }
+        return currentText
     }
 
     // Events

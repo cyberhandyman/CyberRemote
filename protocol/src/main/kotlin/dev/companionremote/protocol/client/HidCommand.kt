@@ -57,6 +57,13 @@ enum class SystemStatus(val code: Long) {
     }
 }
 
+/** Keyboard focus states (`pyatv/const.py KeyboardFocusState`). */
+enum class KeyboardFocusState {
+    Unknown,
+    Unfocused,
+    Focused,
+}
+
 /** Touch phases (`pyatv/const.py TouchAction`). */
 enum class TouchPhase(val code: Long) {
     Press(1),

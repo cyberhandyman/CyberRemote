@@ -37,6 +37,11 @@ class Commands(private val options: Map<String, String>) {
             }
             "swipe" -> swipe(positional.firstOrNull() ?: fail("direction required"))
             "tap" -> withClient { client -> client.tap(); println("tap sent") }
+            "text-set" -> textCommand { it.textSet(positional.firstOrNull() ?: fail("text required")) }
+            "text-append" -> textCommand { it.textAppend(positional.firstOrNull() ?: fail("text required")) }
+            "text-clear" -> textCommand { it.textClear() }
+            "text-get" -> textCommand { it.textGet() }
+            "focus-state" -> focusState()
             else -> fail("unknown command: $command")
         }
     }
@@ -84,6 +89,27 @@ class Commands(private val options: Map<String, String>) {
                 else -> fail("unknown swipe direction: $direction")
             }
             println("swipe $direction sent")
+        }
+    }
+
+    private suspend fun textCommand(block: suspend (CompanionClient) -> String?) {
+        withClient { client ->
+            val result = block(client)
+            if (result == null) {
+                println("no text field is focused on the TV — focus one first")
+            } else {
+                println("text is now: \"$result\"")
+            }
+        }
+    }
+
+    private suspend fun focusState() {
+        withClient { client ->
+            println("watching keyboard focus (Ctrl-C to stop)…")
+            println("current state: ${client.keyboardFocus.value}")
+            client.keyboardFocus.collect { state ->
+                println("focus: $state")
+            }
         }
     }
 

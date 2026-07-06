@@ -8,6 +8,7 @@ import dev.companionremote.app.discovery.AtvDiscovery
 import dev.companionremote.app.discovery.DiscoveredAtv
 import dev.companionremote.protocol.client.CompanionClient
 import dev.companionremote.protocol.client.HidCommand
+import dev.companionremote.protocol.client.KeyboardFocusState
 import dev.companionremote.protocol.companion.CompanionConnection
 import dev.companionremote.protocol.hap.HapCredentials
 import dev.companionremote.protocol.hap.PairSetup
@@ -50,15 +51,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val connectionState = MutableStateFlow(ConnectionState.Disconnected)
     val connectionError = MutableStateFlow<String?>(null)
 
+    /** Keyboard focus state on the TV (drives auto-open of the soft keyboard). */
+    val keyboardFocus = MutableStateFlow(KeyboardFocusState.Unknown)
+
+    /** The phone-side edit buffer mirrored to the TV text field. */
+    val keyboardText = MutableStateFlow("")
+
     /** Set while the remote screen is active. */
     var client: CompanionClient? = null
         private set
     private var pairSetup: PairSetup? = null
     private var pairingConnection: CompanionConnection? = null
     private var reconnectJob: Job? = null
-
-    /** Hook for milestone M6: called when the client (re)connects. */
-    var onClientConnected: ((CompanionClient) -> Unit)? = null
+    private var keyboardFocusJob: Job? = null
+    private var textSyncJob: Job? = null
 
     init {
         startScan()
@@ -174,7 +180,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 newClient.connect()
                 client = newClient
                 connectionState.value = ConnectionState.Connected
-                onClientConnected?.invoke(newClient)
+                observeKeyboard(newClient)
             } catch (e: Exception) {
                 client = null
                 connectionState.value = ConnectionState.Disconnected
@@ -221,6 +227,42 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun pressButton(command: HidCommand) = withClient { it.pressButton(command) }
+
+    // Keyboard (M6): mirror the phone's edit buffer to the TV field
+
+    private fun observeKeyboard(newClient: CompanionClient) {
+        keyboardFocusJob?.cancel()
+        keyboardFocusJob = viewModelScope.launch {
+            newClient.keyboardFocus.collect { state ->
+                keyboardFocus.value = state
+                if (state == KeyboardFocusState.Focused) {
+                    // Pre-fill the edit buffer with what's already in the field
+                    runCatching { newClient.textGet() }.getOrNull()?.let { keyboardText.value = it }
+                }
+            }
+        }
+    }
+
+    /**
+     * Called on every phone-side keystroke. The whole current string is sent
+     * (replace semantics) after a short debounce — the simplest reliable way
+     * to keep both sides in sync.
+     */
+    fun onKeyboardTextChanged(text: String) {
+        keyboardText.value = text
+        textSyncJob?.cancel()
+        textSyncJob = viewModelScope.launch {
+            delay(250)
+            val current = client ?: return@launch
+            runCatching { current.textSet(text) }
+        }
+    }
+
+    fun clearKeyboardText() {
+        keyboardText.value = ""
+        textSyncJob?.cancel()
+        withClient { it.textClear() }
+    }
 
     fun wake() = withClient { it.wake() }
 
