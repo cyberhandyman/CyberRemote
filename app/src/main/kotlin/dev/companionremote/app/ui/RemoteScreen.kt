@@ -240,8 +240,10 @@ fun RemoteScreen(viewModel: AppViewModel, device: DiscoveredAtv) {
         Column(Modifier.fillMaxSize().padding(padding).imePadding()) {
             SegmentedTabs(tab, onSelect = { tab = it })
 
-            if (connectionState == ConnectionState.Disconnected) {
-                ConnectionBanner(connectionError) { viewModel.reconnect() }
+            when (connectionState) {
+                ConnectionState.Disconnected -> ConnectionBanner(connectionError) { viewModel.reconnect() }
+                ConnectionState.Connecting -> ReconnectingBanner()
+                ConnectionState.Connected -> Unit
             }
 
             if (keyboardOpen) {
@@ -280,9 +282,31 @@ private fun StatusDot(state: ConnectionState) {
     val color = when (state) {
         ConnectionState.Connected -> ConnectedGreen
         ConnectionState.Connecting -> ConnectingAmber
-        ConnectionState.Disconnected -> MaterialTheme.colorScheme.outline
+        ConnectionState.Disconnected -> MaterialTheme.colorScheme.error
     }
     Box(Modifier.size(9.dp).clip(CircleShape).background(color))
+}
+
+@Composable
+private fun ReconnectingBanner() {
+    val s = LocalAppStrings.current
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Row(
+            Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+            Text(
+                s.reconnecting,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(start = 12.dp),
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

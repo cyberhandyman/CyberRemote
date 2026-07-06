@@ -44,10 +44,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.companionremote.app.AppViewModel
+import dev.companionremote.app.R
 import dev.companionremote.app.data.ThemeMode
 import dev.companionremote.app.i18n.AppLanguage
 import dev.companionremote.app.i18n.FEEDBACK_EMAIL
@@ -137,8 +139,9 @@ fun SettingsScreen(viewModel: AppViewModel) {
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
-                                Icons.Rounded.Tv,
+                                painterResource(R.drawable.ic_apple),
                                 contentDescription = null,
+                                Modifier.size(22.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             Text(
@@ -192,6 +195,12 @@ fun SettingsScreen(viewModel: AppViewModel) {
 
             // About
             SectionTitle(s.about)
+            Text(
+                s.author,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+            )
             Text(
                 s.aboutText,
                 style = MaterialTheme.typography.bodyMedium,

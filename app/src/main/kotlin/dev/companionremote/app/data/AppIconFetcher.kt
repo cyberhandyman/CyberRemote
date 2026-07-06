@@ -29,8 +29,17 @@ object AppIconFetcher {
 
     private fun safeName(bundleId: String): String = bundleId.replace(Regex("[^A-Za-z0-9._-]"), "_")
 
-    /** Returns the artwork for [bundleId], or null if it can't be resolved. */
+    /**
+     * Returns the artwork for [bundleId], or null if it can't be resolved.
+     *
+     * Matching is done **only by bundle ID** (which is unique) — never by app
+     * name, because searching by a localized name like "音乐" or "唱歌" returns
+     * wrong apps (Spotify, random karaoke apps, …). Apple's own system apps
+     * (`com.apple.*`) aren't in the third-party iTunes catalog, so they always
+     * fall back to the generated tile rather than a bad guess.
+     */
     suspend fun fetch(context: Context, bundleId: String, name: String): ImageBitmap? {
+        if (bundleId.startsWith("com.apple.")) return null
         memoryCache[bundleId]?.let { return it }
 
         val cacheFile = File(cacheDir(context), "${safeName(bundleId)}.png")
@@ -42,7 +51,7 @@ object AppIconFetcher {
         }
 
         return withContext(Dispatchers.IO) {
-            val artworkUrl = lookupArtworkUrl(bundleId) ?: searchArtworkUrl(name) ?: return@withContext null
+            val artworkUrl = lookupArtworkUrl(bundleId) ?: return@withContext null
             val bytes = download(artworkUrl) ?: return@withContext null
             runCatching { cacheFile.writeBytes(bytes) }
             val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@withContext null
@@ -54,14 +63,13 @@ object AppIconFetcher {
         runCatching { BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap() }.getOrNull()
 
     private fun lookupArtworkUrl(bundleId: String): String? {
-        val json = httpGetJson("https://itunes.apple.com/lookup?bundleId=$bundleId&entity=software") ?: return null
-        return firstArtwork(json)
-    }
-
-    private fun searchArtworkUrl(name: String): String? {
-        val term = URLEncoder.encode(name, "UTF-8")
-        val json = httpGetJson("https://itunes.apple.com/search?term=$term&entity=software&limit=1") ?: return null
-        return firstArtwork(json)
+        val encoded = URLEncoder.encode(bundleId, "UTF-8")
+        // Try tvOS artwork first, then any platform for the same bundle ID.
+        for (entity in listOf("tvSoftware", "software")) {
+            val json = httpGetJson("https://itunes.apple.com/lookup?bundleId=$encoded&entity=$entity") ?: continue
+            firstArtwork(json)?.let { return it }
+        }
+        return null
     }
 
     private fun firstArtwork(json: JSONObject): String? {

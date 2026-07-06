@@ -42,9 +42,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.companionremote.app.AppViewModel
+import dev.companionremote.app.R
 import dev.companionremote.app.i18n.LocalAppStrings
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -97,7 +99,7 @@ fun DeviceListScreen(viewModel: AppViewModel) {
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        Icons.Rounded.Tv,
+                        painterResource(R.drawable.ic_apple),
                         contentDescription = null,
                         Modifier.size(44.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -141,8 +143,9 @@ fun DeviceListScreen(viewModel: AppViewModel) {
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Icon(
-                                    Icons.Rounded.Tv,
+                                    painterResource(R.drawable.ic_apple),
                                     contentDescription = null,
+                                    Modifier.size(26.dp),
                                     tint = MaterialTheme.colorScheme.onSecondaryContainer,
                                 )
                             }

@@ -49,6 +49,7 @@ data class AppStrings(
     val wake: String,
     val sleep: String,
     val reconnect: String,
+    val reconnecting: String,
     val connectionLost: String,
     val typingOn: String,
     val noFieldFocused: String,
@@ -72,6 +73,7 @@ data class AppStrings(
     val themeSystem: String,
     val themeLight: String,
     val themeDark: String,
+    val author: String,
 )
 
 val EnglishStrings = AppStrings(
@@ -109,6 +111,7 @@ val EnglishStrings = AppStrings(
     wake = "Wake",
     sleep = "Sleep",
     reconnect = "Reconnect",
+    reconnecting = "Reconnecting…",
     connectionLost = "Connection lost",
     typingOn = "Typing on %s",
     noFieldFocused = "No text field focused on the TV",
@@ -131,6 +134,7 @@ val EnglishStrings = AppStrings(
     themeSystem = "Follow system",
     themeLight = "Light",
     themeDark = "Dark",
+    author = "Author: CyberHandyman",
 )
 
 val ChineseStrings = AppStrings(
@@ -168,6 +172,7 @@ val ChineseStrings = AppStrings(
     wake = "唤醒",
     sleep = "睡眠",
     reconnect = "重新连接",
+    reconnecting = "正在重新连接…",
     connectionLost = "连接已断开",
     typingOn = "正在向 %s 输入",
     noFieldFocused = "电视上没有聚焦的输入框",
@@ -190,6 +195,7 @@ val ChineseStrings = AppStrings(
     themeSystem = "跟随系统",
     themeLight = "白天",
     themeDark = "夜间",
+    author = "作者：赛博工具人",
 )
 
 /** The developer's feedback email. */
