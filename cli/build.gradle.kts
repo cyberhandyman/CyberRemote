@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.serialization)
     application
 }
 
@@ -17,6 +18,7 @@ kotlin {
 dependencies {
     implementation(project(":protocol"))
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.jmdns)
 
     testImplementation(libs.junit.jupiter)
