@@ -1,3 +1,82 @@
+# CyberRemote
+
+A free, open-source, ad-free Android remote for Apple TV (tvOS 15+). It speaks Apple's Companion Link protocol directly over your local network — no cloud, no bridge server, no companion daemon, no telemetry. The phone talks straight to the Apple TV.
+
+> CyberRemote is an independent open-source project. It is **not affiliated with, endorsed by, or sponsored by Apple Inc.** "Apple TV" is a trademark of Apple Inc., used here only to describe compatibility.
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/ee901631-d246-4841-9c41-ebeab1fd6666" width="240" alt="Remote">
+  <img src="https://github.com/user-attachments/assets/2fdf3f5a-a426-4550-b83f-acd42af68785" width="240" alt="Touchpad">
+  <img src="https://github.com/user-attachments/assets/4a444713-9511-4d92-b9d1-aa691d4e18b2" width="240" alt="App launcher">
+</p>
+<p align="center">
+  <em>Remote · Touchpad · App launcher</em>
+</p>
+
+## Features
+
+- **Full keyboard input** — when a text field is focused on the TV, your phone's keyboard opens automatically and types straight into it (search boxes, passwords, URLs). CJK and emoji included.
+- D-pad, select, back, home, play/pause, volume
+- Wake and sleep
+- Touchpad swipe navigation
+- App list + launch
+- Pairing with the PIN shown on the TV (HomeKit-style pair-setup); your credentials never leave the phone (encrypted with the Android Keystore)
+
+## Install
+
+Grab the APK from [GitHub Releases](../../releases) and install it (you may need to allow installs from unknown sources).
+
+**Requirements:** Android 8.0+ (API 26), an Apple TV HD/4K on tvOS 15–26, and both devices on the same Wi-Fi network / subnet.
+
+## First run
+
+1. On the Apple TV, check **Settings → AirPlay and HomeKit → Allow Access** permits devices on your network.
+2. Open CyberRemote — your Apple TV should appear in the list.
+3. Tap it, enter the 4-digit PIN shown on the TV, done.
+
+## FAQ
+
+**The app doesn't find my Apple TV.**
+Discovery uses mDNS (Bonjour), which only works within the same broadcast domain. Phone and TV must be on the same subnet/VLAN, and your router must not block multicast ("AP/client isolation" breaks it). As a fallback, use *Connect by IP* (the ⛓ icon) — note the port changes after every Apple TV reboot; you can find the current one with any Bonjour browser.
+
+**Pairing fails or no PIN appears.**
+Check **Settings → AirPlay and HomeKit → Allow Access** on the TV. If a PIN appears but pairing still fails, try once more — then open an issue.
+
+**It stopped working after a tvOS update.**
+The Companion protocol is private and reverse-engineered (by the [pyatv](https://github.com/postlund/pyatv) project); tvOS updates can break it at any time. Check open issues — breakage is usually fixed in pyatv first, and we port the fix.
+
+**Typing doesn't reach the TV.**
+The keyboard only works while a text field is focused on the TV — the app shows "Typing on …" when it is. Password fields on some tvOS versions block reading the current text; replacing/typing still works.
+
+**Why does the app need the multicast permission?**
+`CHANGE_WIFI_MULTICAST_STATE` is required for mDNS discovery on Android; without a multicast lock the scan silently finds nothing. By default the app makes no network connections other than to your Apple TV.
+
+The one exception is entirely optional and off by default: if you turn on **Settings → Fetch real app icons**, the Apps grid will call Apple's public iTunes lookup/search API to load real artwork (cached on disk). Leave it off to keep the app fully local — the Apps grid then shows generated initial tiles and makes no outside requests.
+
+**Now playing info / artwork?**
+Not in v1 — that needs a different protocol (MRP over AirPlay 2). Planned as a possible v2.
+
+## Building
+
+```bash
+./gradlew :protocol:test          # protocol unit tests (pure JVM)
+./gradlew :app:assembleDebug      # APK at app/build/outputs/apk/debug/
+./gradlew :cli:run --args="scan"  # CLI harness for protocol debugging
+```
+
+## Modules
+
+- `protocol/` — pure Kotlin/JVM implementation of the Companion Link protocol: OPACK, TLV8, HAP pair-setup/pair-verify (SRP-6a), the ChaCha20-Poly1305 session, HID/touch/app/power commands and RTI text input (binary-plist keyed archives). No Android dependencies — reusable.
+- `cli/` — command-line harness (`scan`, `pair`, `command`, `text-set`, `focus-state`, …). The primary integration-test tool against real hardware.
+- `app/` — the Android app (Jetpack Compose, Material 3).
+- `docs/protocol-notes.md` — the verified protocol details and where each piece was ported from.
+
+## Credits & license
+
+MIT. The protocol knowledge comes from the outstanding reverse-engineering work of [pyatv](https://github.com/postlund/pyatv) (MIT) — this project is a from-scratch Kotlin implementation following pyatv's documented behavior.
+
+---
+
 # CyberRemote 赛博 Apple TV 遥控器
 
 *中文在前 · English below*
@@ -76,82 +155,3 @@ v1 暂不支持——那需要另一套协议（MRP over AirPlay 2）。计划�
 ## 致谢与许可
 
 MIT 许可。协议知识来自 [pyatv](https://github.com/postlund/pyatv)（MIT）出色的逆向工程成果——本项目是遵循 pyatv 已记录行为、用 Kotlin 从零编写的独立实现。
-
----
-
-# CyberRemote
-
-A free, open-source, ad-free Android remote for Apple TV (tvOS 15+). It speaks Apple's Companion Link protocol directly over your local network — no cloud, no bridge server, no companion daemon, no telemetry. The phone talks straight to the Apple TV.
-
-> CyberRemote is an independent open-source project. It is **not affiliated with, endorsed by, or sponsored by Apple Inc.** "Apple TV" is a trademark of Apple Inc., used here only to describe compatibility.
-
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/ee901631-d246-4841-9c41-ebeab1fd6666" width="240" alt="Remote">
-  <img src="https://github.com/user-attachments/assets/2fdf3f5a-a426-4550-b83f-acd42af68785" width="240" alt="Touchpad">
-  <img src="https://github.com/user-attachments/assets/4a444713-9511-4d92-b9d1-aa691d4e18b2" width="240" alt="App launcher">
-</p>
-<p align="center">
-  <em>Remote · Touchpad · App launcher</em>
-</p>
-
-## Features
-
-- **Full keyboard input** — when a text field is focused on the TV, your phone's keyboard opens automatically and types straight into it (search boxes, passwords, URLs). CJK and emoji included.
-- D-pad, select, back, home, play/pause, volume
-- Wake and sleep
-- Touchpad swipe navigation
-- App list + launch
-- Pairing with the PIN shown on the TV (HomeKit-style pair-setup); your credentials never leave the phone (encrypted with the Android Keystore)
-
-## Install
-
-Grab the APK from [GitHub Releases](../../releases) and install it (you may need to allow installs from unknown sources).
-
-**Requirements:** Android 8.0+ (API 26), an Apple TV HD/4K on tvOS 15–26, and both devices on the same Wi-Fi network / subnet.
-
-## First run
-
-1. On the Apple TV, check **Settings → AirPlay and HomeKit → Allow Access** permits devices on your network.
-2. Open CyberRemote — your Apple TV should appear in the list.
-3. Tap it, enter the 4-digit PIN shown on the TV, done.
-
-## FAQ
-
-**The app doesn't find my Apple TV.**
-Discovery uses mDNS (Bonjour), which only works within the same broadcast domain. Phone and TV must be on the same subnet/VLAN, and your router must not block multicast ("AP/client isolation" breaks it). As a fallback, use *Connect by IP* (the ⛓ icon) — note the port changes after every Apple TV reboot; you can find the current one with any Bonjour browser.
-
-**Pairing fails or no PIN appears.**
-Check **Settings → AirPlay and HomeKit → Allow Access** on the TV. If a PIN appears but pairing still fails, try once more — then open an issue.
-
-**It stopped working after a tvOS update.**
-The Companion protocol is private and reverse-engineered (by the [pyatv](https://github.com/postlund/pyatv) project); tvOS updates can break it at any time. Check open issues — breakage is usually fixed in pyatv first, and we port the fix.
-
-**Typing doesn't reach the TV.**
-The keyboard only works while a text field is focused on the TV — the app shows "Typing on …" when it is. Password fields on some tvOS versions block reading the current text; replacing/typing still works.
-
-**Why does the app need the multicast permission?**
-`CHANGE_WIFI_MULTICAST_STATE` is required for mDNS discovery on Android; without a multicast lock the scan silently finds nothing. By default the app makes no network connections other than to your Apple TV.
-
-The one exception is entirely optional and off by default: if you turn on **Settings → Fetch real app icons**, the Apps grid will call Apple's public iTunes lookup/search API to load real artwork (cached on disk). Leave it off to keep the app fully local — the Apps grid then shows generated initial tiles and makes no outside requests.
-
-**Now playing info / artwork?**
-Not in v1 — that needs a different protocol (MRP over AirPlay 2). Planned as a possible v2.
-
-## Building
-
-```bash
-./gradlew :protocol:test          # protocol unit tests (pure JVM)
-./gradlew :app:assembleDebug      # APK at app/build/outputs/apk/debug/
-./gradlew :cli:run --args="scan"  # CLI harness for protocol debugging
-```
-
-## Modules
-
-- `protocol/` — pure Kotlin/JVM implementation of the Companion Link protocol: OPACK, TLV8, HAP pair-setup/pair-verify (SRP-6a), the ChaCha20-Poly1305 session, HID/touch/app/power commands and RTI text input (binary-plist keyed archives). No Android dependencies — reusable.
-- `cli/` — command-line harness (`scan`, `pair`, `command`, `text-set`, `focus-state`, …). The primary integration-test tool against real hardware.
-- `app/` — the Android app (Jetpack Compose, Material 3).
-- `docs/protocol-notes.md` — the verified protocol details and where each piece was ported from.
-
-## Credits & license
-
-MIT. The protocol knowledge comes from the outstanding reverse-engineering work of [pyatv](https://github.com/postlund/pyatv) (MIT) — this project is a from-scratch Kotlin implementation following pyatv's documented behavior.
