@@ -1,11 +1,11 @@
-# Companion Remote
+# CyberRemote
 
 A free, open-source, **ad-free Android remote for Apple TV** (tvOS 15+).
 It speaks Apple's Companion Link protocol directly over your local network —
 no cloud, no bridge server, no companion daemon, no telemetry. The phone
 talks straight to the Apple TV.
 
-> Companion Remote is an independent open-source project. It is **not
+> CyberRemote is an independent open-source project. It is **not
 > affiliated with, endorsed by, or sponsored by Apple Inc.** "Apple TV" is a
 > trademark of Apple Inc., used here only to describe compatibility.
 

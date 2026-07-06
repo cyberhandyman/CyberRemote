@@ -25,6 +25,10 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    // These tests drive real coroutine timing (runBlocking + delays); running
+    // the forks serially avoids the executor being overloaded by many
+    // wall-clock-bound tests at once.
+    maxParallelForks = 1
     testLogging {
         events("failed", "skipped")
     }

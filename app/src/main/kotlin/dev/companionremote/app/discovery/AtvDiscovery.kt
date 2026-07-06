@@ -110,6 +110,19 @@ class AtvDiscovery(context: Context) {
                                 return
                             }
                             val model = serviceInfo.attributes["rpMd"]?.toString(Charsets.UTF_8)
+                            val flags = serviceInfo.attributes["rpFl"]?.toString(Charsets.UTF_8)
+                                ?.removePrefix("0x")?.toIntOrNull(16) ?: 0
+                            // The `_companion-link._tcp` service is also
+                            // advertised by Macs and HomePods. Keep only Apple
+                            // TVs: model starts with "AppleTV", or (model
+                            // missing) the rpFl PIN-pairable bit is set — Macs
+                            // and HomePods do not set it.
+                            val isAppleTv = model?.startsWith("AppleTV") == true ||
+                                (model.isNullOrEmpty() && (flags and PAIRABLE_MASK) != 0)
+                            if (!isAppleTv) {
+                                if (continuation.isActive) continuation.resume(null)
+                                return
+                            }
                             if (continuation.isActive) {
                                 continuation.resume(
                                     DiscoveredAtv(
@@ -128,5 +141,9 @@ class AtvDiscovery(context: Context) {
 
     companion object {
         const val SERVICE_TYPE = "_companion-link._tcp."
+
+        // pyatv PAIRING_WITH_PIN_SUPPORTED_MASK — set on Apple TVs, not on
+        // Macs/HomePods (pyatv/protocols/companion/__init__.py).
+        private const val PAIRABLE_MASK = 0x4000
     }
 }

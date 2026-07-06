@@ -69,8 +69,13 @@ Verified 2026-07-06 against an Apple TV 4K (AppleTV14,1) at 192.168.50.173.
    returned the full app map; `launch` opened the App Store (M4). Port did
    not change across a sleep/wake cycle. Home-screen select long-press found
    and fixed (routes to tap; see below).
-4. ⏳ App discovery/pairing/daily-drive — APK builds; not yet run on a phone
-   (M5).
+4. ✅ App on a real phone (Samsung S26U): discovery, PIN pairing, D-pad,
+   OK, touchpad, keyboard (incl. password fields), reboot+reconnect all
+   confirmed working (M5). Feedback fixes applied (2026-07-06): discovery now
+   filters to Apple TVs only (Macs/HomePods were showing up); keyboard mode
+   uses a compact cross+OK above the soft keyboard so OK/down aren't hidden;
+   Home supports long-press (Control Center); UI restyled; app renamed
+   **CyberRemote**.
 5. ✅ Keyboard: focus event detection confirmed (`_tiStarted`/`_tiStopped`);
    typed `hello 你好 🙂 한국어` (ASCII+Chinese+emoji+Korean) into the App
    Store search box; graceful no-op when unfocused confirmed (M6). Real-

@@ -34,7 +34,7 @@ import kotlinx.coroutines.launch
 class CompanionClient(
     private val connection: CompanionConnection,
     private val credentials: HapCredentials,
-    private val name: String = "Companion Remote",
+    private val name: String = "CyberRemote",
 ) {
     /** Combined session id after `_sessionStart`: (remote << 32) | local. */
     var sessionId: Long = 0
@@ -295,6 +295,17 @@ class CompanionClient(
      */
     suspend fun pressButton(command: HidCommand) {
         sendHidNoWait(true, command)
+        hidCommand(false, command)
+    }
+
+    /**
+     * Press and hold a button: down, wait [holdMs], then up. Holding Home
+     * opens the tvOS Control Center, like a long-press on the physical
+     * remote. (pyatv models this as `InputAction.Hold`.)
+     */
+    suspend fun holdButton(command: HidCommand, holdMs: Long = 700) {
+        sendHidNoWait(true, command)
+        delay(holdMs)
         hidCommand(false, command)
     }
 

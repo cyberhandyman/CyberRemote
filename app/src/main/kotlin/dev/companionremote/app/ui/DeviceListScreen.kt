@@ -1,6 +1,8 @@
 package dev.companionremote.app.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,12 +13,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -24,9 +27,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -35,6 +40,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.companionremote.app.AppViewModel
 
@@ -45,18 +52,28 @@ fun DeviceListScreen(viewModel: AppViewModel) {
     var showManualDialog by remember { mutableStateOf(false) }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Companion Remote") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                ),
+                title = {
+                    Text(
+                        "CyberRemote",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                },
                 actions = {
                     IconButton(onClick = { showManualDialog = true }) {
-                        Icon(Icons.Default.Link, contentDescription = "Connect by IP")
+                        Icon(Icons.Rounded.Link, contentDescription = "Connect by IP")
                     }
                     if (ui.scanning) {
-                        CircularProgressIndicator(Modifier.size(24.dp).padding(end = 8.dp), strokeWidth = 2.dp)
+                        CircularProgressIndicator(Modifier.size(22.dp).padding(end = 10.dp), strokeWidth = 2.dp)
                     } else {
                         IconButton(onClick = { viewModel.startScan() }) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Rescan")
+                            Icon(Icons.Rounded.Refresh, contentDescription = "Rescan")
                         }
                     }
                 },
@@ -65,39 +82,77 @@ fun DeviceListScreen(viewModel: AppViewModel) {
     ) { padding ->
         if (ui.devices.isEmpty()) {
             Column(
-                Modifier.fillMaxSize().padding(padding).padding(32.dp),
+                Modifier.fillMaxSize().padding(padding).padding(40.dp),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Icon(Icons.Default.Tv, contentDescription = null, Modifier.size(56.dp))
-                Spacer(Modifier.height(16.dp))
+                Box(
+                    Modifier.size(96.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Rounded.Tv,
+                        contentDescription = null,
+                        Modifier.size(44.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.height(24.dp))
                 Text(
-                    if (ui.scanning) "Looking for Apple TVs…"
-                    else "No Apple TV found.\nPhone and TV must be on the same Wi-Fi network.",
-                    style = MaterialTheme.typography.bodyLarge,
+                    if (ui.scanning) "Looking for your Apple TV…" else "No Apple TV found",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Your phone and Apple TV must be on the same Wi-Fi network.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
                 )
             }
         } else {
-            LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
+            LazyColumn(
+                Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp),
+            ) {
                 items(ui.devices, key = { it.name }) { device ->
-                    Card(
+                    Surface(
                         onClick = { viewModel.selectDevice(device) },
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainer,
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
                         Row(
                             Modifier.fillMaxWidth().padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(Icons.Default.Tv, contentDescription = null)
+                            Box(
+                                Modifier.size(48.dp).background(
+                                    MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(14.dp),
+                                ),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Tv,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                )
+                            }
                             Column(Modifier.padding(start = 16.dp).weight(1f)) {
-                                Text(device.name, style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    device.name,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Medium,
+                                )
                                 Text(
                                     listOfNotNull(
                                         device.model,
-                                        "${device.host}:${device.port}",
-                                        if (device.name in ui.pairedNames) "paired" else "not paired",
+                                        if (device.name in ui.pairedNames) "Paired" else "Tap to pair",
                                     ).joinToString("  ·  "),
                                     style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                             if (device.name in ui.pairedNames) {
@@ -119,8 +174,8 @@ fun DeviceListScreen(viewModel: AppViewModel) {
             text = {
                 Column {
                     Text(
-                        "For networks where discovery doesn't work. " +
-                            "The port changes after every Apple TV reboot.",
+                        "For networks where discovery doesn't work. The port " +
+                            "changes after every Apple TV reboot.",
                         style = MaterialTheme.typography.bodySmall,
                     )
                     Spacer(Modifier.height(12.dp))

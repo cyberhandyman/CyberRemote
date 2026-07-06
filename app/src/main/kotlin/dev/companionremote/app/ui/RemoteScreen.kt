@@ -1,6 +1,9 @@
 package dev.companionremote.app.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -24,37 +28,41 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Apps
-import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Gamepad
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Keyboard
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.PowerSettingsNew
-import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Clear
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Keyboard
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.rounded.KeyboardReturn
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.PowerSettingsNew
+import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Snackbar
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -65,21 +73,26 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.companionremote.app.AppViewModel
 import dev.companionremote.app.ConnectionState
 import dev.companionremote.app.discovery.DiscoveredAtv
 import dev.companionremote.protocol.client.HidCommand
 import dev.companionremote.protocol.client.KeyboardFocusState
-import dev.companionremote.protocol.client.TouchPhase
+
+private val ConnectedGreen = Color(0xFF9ECE6A)
+private val ConnectingAmber = Color(0xFFE0AF68)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,10 +106,10 @@ fun RemoteScreen(viewModel: AppViewModel, device: DiscoveredAtv) {
     var keyboardOpen by remember { mutableStateOf(false) }
     var tab by remember { mutableIntStateOf(0) }
 
-    fun press(command: HidCommand) {
-        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-        viewModel.pressButton(command)
-    }
+    fun tap() = haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+    fun press(command: HidCommand) { tap(); viewModel.pressButton(command) }
+    fun hold(command: HidCommand) { tap(); viewModel.holdButton(command) }
+    fun ok() { tap(); viewModel.touchTap() }
 
     LaunchedEffect(focusState) {
         when (focusState) {
@@ -105,25 +118,35 @@ fun RemoteScreen(viewModel: AppViewModel, device: DiscoveredAtv) {
             KeyboardFocusState.Unknown -> Unit
         }
     }
-
-    LaunchedEffect(tab) {
-        if (tab == 2) viewModel.loadApps()
-    }
+    LaunchedEffect(tab) { if (tab == 2) viewModel.loadApps() }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                ),
                 title = {
-                    Column {
-                        Text(device.name, style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            when (connectionState) {
-                                ConnectionState.Connected -> "connected"
-                                ConnectionState.Connecting -> "connecting…"
-                                ConnectionState.Disconnected -> "disconnected"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        StatusDot(connectionState)
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                device.name,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                when (connectionState) {
+                                    ConnectionState.Connected -> "Connected"
+                                    ConnectionState.Connecting -> "Connecting…"
+                                    ConnectionState.Disconnected -> "Disconnected"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 },
                 navigationIcon = {
@@ -133,7 +156,7 @@ fun RemoteScreen(viewModel: AppViewModel, device: DiscoveredAtv) {
                 },
                 actions = {
                     IconButton(onClick = { powerMenu = true }) {
-                        Icon(Icons.Default.PowerSettingsNew, contentDescription = "Power")
+                        Icon(Icons.Rounded.PowerSettingsNew, contentDescription = "Power")
                     }
                     DropdownMenu(expanded = powerMenu, onDismissRequest = { powerMenu = false }) {
                         DropdownMenuItem(text = { Text("Wake") }, onClick = { powerMenu = false; viewModel.wake() })
@@ -144,180 +167,325 @@ fun RemoteScreen(viewModel: AppViewModel, device: DiscoveredAtv) {
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).imePadding()) {
-            TabRow(selectedTabIndex = tab) {
-                Tab(tab == 0, onClick = { tab = 0 }, text = { Text("Remote") }, icon = { Icon(Icons.Default.Gamepad, null) })
-                Tab(tab == 1, onClick = { tab = 1 }, text = { Text("Touch") }, icon = { Icon(Icons.Default.TouchApp, null) })
-                Tab(tab == 2, onClick = { tab = 2 }, text = { Text("Apps") }, icon = { Icon(Icons.Default.Apps, null) })
-            }
+            SegmentedTabs(tab, onSelect = { tab = it })
 
             if (connectionState == ConnectionState.Disconnected) {
-                Snackbar(
-                    modifier = Modifier.padding(16.dp),
-                    action = { TextButton(onClick = { viewModel.reconnect() }) { Text("Reconnect") } },
-                ) {
-                    Text(connectionError ?: "Connection lost")
-                }
+                ConnectionBanner(connectionError) { viewModel.reconnect() }
             }
 
             if (keyboardOpen) {
-                val focusRequester = remember { FocusRequester() }
-                val softKeyboard = LocalSoftwareKeyboardController.current
-                OutlinedTextField(
-                    value = keyboardText,
-                    onValueChange = viewModel::onKeyboardTextChanged,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .focusRequester(focusRequester),
-                    label = {
-                        Text(
-                            if (focusState == KeyboardFocusState.Focused) "Typing on ${device.name}"
-                            else "No text field focused on the TV",
-                        )
-                    },
-                    enabled = focusState == KeyboardFocusState.Focused,
-                    trailingIcon = {
-                        IconButton(onClick = { viewModel.clearKeyboardText() }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Clear TV text")
-                        }
-                    },
+                KeyboardBar(
+                    text = keyboardText,
+                    focused = focusState == KeyboardFocusState.Focused,
+                    deviceName = device.name,
+                    onTextChange = viewModel::onKeyboardTextChanged,
+                    onClear = { viewModel.clearKeyboardText() },
                 )
-                LaunchedEffect(keyboardOpen, focusState) {
-                    if (focusState == KeyboardFocusState.Focused) {
-                        focusRequester.requestFocus()
-                        softKeyboard?.show()
-                    }
+                // Compact controls live directly under the field, above the
+                // soft keyboard — so OK / down are always reachable.
+                CompactDpad(press = ::press, ok = ::ok)
+            } else {
+                when (tab) {
+                    0 -> DpadPane(press = ::press, hold = ::hold, ok = ::ok) { keyboardOpen = true }
+                    1 -> TouchpadPane(viewModel, ::press, ::hold)
+                    2 -> AppsPane(viewModel)
                 }
-            }
-
-            when (tab) {
-                0 -> DpadPane(
-                    press = ::press,
-                    onOk = {
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        viewModel.touchTap()
-                    },
-                    toggleKeyboard = { keyboardOpen = !keyboardOpen },
-                )
-                1 -> TouchpadPane(viewModel, ::press)
-                2 -> AppsPane(viewModel)
             }
         }
     }
 }
 
 @Composable
-private fun DpadPane(press: (HidCommand) -> Unit, onOk: () -> Unit, toggleKeyboard: () -> Unit) {
+private fun StatusDot(state: ConnectionState) {
+    val color = when (state) {
+        ConnectionState.Connected -> ConnectedGreen
+        ConnectionState.Connecting -> ConnectingAmber
+        ConnectionState.Disconnected -> MaterialTheme.colorScheme.outline
+    }
+    Box(Modifier.size(9.dp).clip(CircleShape).background(color))
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SegmentedTabs(selected: Int, onSelect: (Int) -> Unit) {
+    val titles = listOf("Remote" to Icons.Default.Gamepad, "Touch" to Icons.Default.TouchApp, "Apps" to Icons.Default.Apps)
+    TabRow(
+        selectedTabIndex = selected,
+        containerColor = MaterialTheme.colorScheme.background,
+        indicator = { positions ->
+            TabRowDefaults.PrimaryIndicator(
+                Modifier.tabIndicatorOffset(positions[selected]),
+                width = 40.dp,
+            )
+        },
+    ) {
+        titles.forEachIndexed { i, (title, icon) ->
+            Tab(
+                selected = selected == i,
+                onClick = { onSelect(i) },
+                text = { Text(title, style = MaterialTheme.typography.labelLarge) },
+                icon = { Icon(icon, contentDescription = null, Modifier.size(20.dp)) },
+                selectedContentColor = MaterialTheme.colorScheme.primary,
+                unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ConnectionBanner(error: String?, onReconnect: () -> Unit) {
+    Surface(
+        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Row(
+            Modifier.padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                error ?: "Connection lost",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onReconnect) { Text("Reconnect") }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun KeyboardBar(
+    text: String,
+    focused: Boolean,
+    deviceName: String,
+    onTextChange: (String) -> Unit,
+    onClear: () -> Unit,
+) {
+    val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+    val softKeyboard = LocalSoftwareKeyboardController.current
+    OutlinedTextField(
+        value = text,
+        onValueChange = onTextChange,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .focusRequester(focusRequester),
+        shape = RoundedCornerShape(16.dp),
+        label = { Text(if (focused) "Typing on $deviceName" else "No text field focused on the TV") },
+        enabled = focused,
+        singleLine = true,
+        trailingIcon = {
+            IconButton(onClick = onClear) {
+                Icon(Icons.Rounded.Clear, contentDescription = "Clear TV text")
+            }
+        },
+    )
+    LaunchedEffect(focused) {
+        if (focused) {
+            focusRequester.requestFocus()
+            softKeyboard?.show()
+        }
+    }
+}
+
+/** Full remote pane: big D-pad dial + a row of round action keys. */
+@Composable
+private fun DpadPane(
+    press: (HidCommand) -> Unit,
+    hold: (HidCommand) -> Unit,
+    ok: () -> Unit,
+    openKeyboard: () -> Unit,
+) {
     Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(
-            Modifier
-                .fillMaxWidth(0.85f)
-                .aspectRatio(1f)
-                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
-        ) {
-            DpadButton(Icons.Default.KeyboardArrowUp, "Up", Modifier.align(Alignment.TopCenter)) {
-                press(HidCommand.Up)
-            }
-            DpadButton(Icons.Default.KeyboardArrowDown, "Down", Modifier.align(Alignment.BottomCenter)) {
-                press(HidCommand.Down)
-            }
-            DpadButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Left", Modifier.align(Alignment.CenterStart)) {
-                press(HidCommand.Left)
-            }
-            DpadButton(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Right", Modifier.align(Alignment.CenterEnd)) {
-                press(HidCommand.Right)
-            }
-            FilledTonalIconButton(
-                // Use the touchpad tap (adds the _hidT Click event); a bare
-                // _hidC select is misread as a long-press on the tvOS home
-                // screen (real-device finding).
-                onClick = onOk,
-                modifier = Modifier.align(Alignment.Center).size(88.dp),
-            ) {
-                Text("OK", style = MaterialTheme.typography.titleMedium)
-            }
-        }
-
-        Spacer(Modifier.height(28.dp))
-
+        DpadDial(press = press, ok = ok)
+        Spacer(Modifier.height(32.dp))
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            RemoteKey(Icons.AutoMirrored.Filled.ArrowBack, "Back") { press(HidCommand.Menu) }
-            RemoteKey(Icons.Default.Home, "Home") { press(HidCommand.Home) }
-            RemoteKey(Icons.Default.PlayArrow, "Play/Pause") { press(HidCommand.PlayPause) }
-            RemoteKey(Icons.Default.Keyboard, "Keyboard") { toggleKeyboard() }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                RemoteKey(Icons.Default.Add, "Volume up") { press(HidCommand.VolumeUp) }
-                Spacer(Modifier.height(12.dp))
-                RemoteKey(Icons.Default.Remove, "Volume down") { press(HidCommand.VolumeDown) }
+            RoundKey(Icons.AutoMirrored.Filled.ArrowBack, "Back", onClick = { press(HidCommand.Menu) })
+            RoundKey(
+                Icons.Rounded.Home,
+                "Home (hold: Control Center)",
+                onClick = { press(HidCommand.Home) },
+                onLongClick = { hold(HidCommand.Home) },
+            )
+            RoundKey(Icons.Rounded.PlayArrow, "Play/Pause", onClick = { press(HidCommand.PlayPause) })
+            RoundKey(Icons.Rounded.Keyboard, "Keyboard", onClick = { openKeyboard() })
+        }
+        Spacer(Modifier.height(20.dp))
+        VolumePill(press)
+    }
+}
+
+/** The large circular D-pad with a centre OK. */
+@Composable
+private fun DpadDial(press: (HidCommand) -> Unit, ok: () -> Unit) {
+    Box(
+        Modifier
+            .fillMaxWidth(0.86f)
+            .aspectRatio(1f)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        DialArrow(Icons.Rounded.KeyboardArrowUp, "Up", Modifier.align(Alignment.TopCenter)) { press(HidCommand.Up) }
+        DialArrow(Icons.Rounded.KeyboardArrowDown, "Down", Modifier.align(Alignment.BottomCenter)) { press(HidCommand.Down) }
+        DialArrow(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "Left", Modifier.align(Alignment.CenterStart)) { press(HidCommand.Left) }
+        DialArrow(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "Right", Modifier.align(Alignment.CenterEnd)) { press(HidCommand.Right) }
+        Surface(
+            onClick = ok,
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primaryContainer,
+            modifier = Modifier.size(96.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    "OK",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
             }
         }
     }
 }
 
 @Composable
-private fun TouchpadPane(viewModel: AppViewModel, press: (HidCommand) -> Unit) {
+private fun DialArrow(icon: ImageVector, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    IconButton(onClick = onClick, modifier = modifier.size(76.dp)) {
+        Icon(icon, contentDescription = label, Modifier.size(38.dp), tint = MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+@Composable
+private fun VolumePill(press: (HidCommand) -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { press(HidCommand.VolumeDown) }, modifier = Modifier.size(56.dp)) {
+                Icon(Icons.Rounded.Remove, contentDescription = "Volume down")
+            }
+            Text(
+                "VOL",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            IconButton(onClick = { press(HidCommand.VolumeUp) }, modifier = Modifier.size(56.dp)) {
+                Icon(Icons.Rounded.Add, contentDescription = "Volume up")
+            }
+        }
+    }
+}
+
+/** Compact cross of arrows + OK, shown above the soft keyboard. */
+@Composable
+private fun CompactDpad(press: (HidCommand) -> Unit, ok: () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        MiniKey(Icons.Rounded.KeyboardArrowUp, "Up") { press(HidCommand.Up) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MiniKey(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "Left") { press(HidCommand.Left) }
+            Surface(
+                onClick = ok,
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(56.dp).padding(4.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text("OK", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+            }
+            MiniKey(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "Right") { press(HidCommand.Right) }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MiniKey(Icons.Rounded.KeyboardArrowDown, "Down") { press(HidCommand.Down) }
+            Spacer(Modifier.width(8.dp))
+            MiniKey(Icons.AutoMirrored.Filled.ArrowBack, "Back") { press(HidCommand.Menu) }
+        }
+    }
+}
+
+@Composable
+private fun MiniKey(icon: ImageVector, label: String, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.size(52.dp).padding(4.dp),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = label, Modifier.size(26.dp))
+        }
+    }
+}
+
+@Composable
+private fun TouchpadPane(viewModel: AppViewModel, press: (HidCommand) -> Unit, hold: (HidCommand) -> Unit) {
     val lastTouch = remember { mutableStateOf(500L to 500L) }
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Box(
             Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(24.dp))
-                .pointerInput(Unit) {
-                    detectTapGestures(onTap = { viewModel.touchTap() })
-                }
+                .clip(RoundedCornerShape(28.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(28.dp))
+                .pointerInput(Unit) { detectTapGestures(onTap = { viewModel.touchTap() }) }
                 .pointerInput(Unit) {
                     detectDragGestures(
                         onDragStart = { offset ->
                             val x = (offset.x * 1000 / size.width).toLong()
                             val y = (offset.y * 1000 / size.height).toLong()
                             lastTouch.value = x to y
-                            viewModel.sendTouch(x, y, TouchPhase.Press)
+                            viewModel.sendTouch(x, y, dev.companionremote.protocol.client.TouchPhase.Press)
                         },
                         onDrag = { change, _ ->
                             change.consume()
                             val x = (change.position.x * 1000 / size.width).toLong()
                             val y = (change.position.y * 1000 / size.height).toLong()
                             lastTouch.value = x to y
-                            viewModel.sendTouch(x, y, TouchPhase.Hold)
+                            viewModel.sendTouch(x, y, dev.companionremote.protocol.client.TouchPhase.Hold)
                         },
                         onDragEnd = {
                             val (x, y) = lastTouch.value
-                            viewModel.sendTouch(x, y, TouchPhase.Release)
+                            viewModel.sendTouch(x, y, dev.companionremote.protocol.client.TouchPhase.Release)
                         },
                         onDragCancel = {
                             val (x, y) = lastTouch.value
-                            viewModel.sendTouch(x, y, TouchPhase.Release)
+                            viewModel.sendTouch(x, y, dev.companionremote.protocol.client.TouchPhase.Release)
                         },
                     )
                 },
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                "Swipe to navigate\nTap to select",
+                "Swipe to navigate · Tap to select",
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         Spacer(Modifier.height(16.dp))
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-        ) {
-            RemoteKey(Icons.AutoMirrored.Filled.ArrowBack, "Back") { press(HidCommand.Menu) }
-            RemoteKey(Icons.Default.Home, "Home") { press(HidCommand.Home) }
-            RemoteKey(Icons.Default.PlayArrow, "Play/Pause") { press(HidCommand.PlayPause) }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            RoundKey(Icons.AutoMirrored.Filled.ArrowBack, "Back", onClick = { press(HidCommand.Menu) })
+            RoundKey(
+                Icons.Rounded.Home,
+                "Home (hold: Control Center)",
+                onClick = { press(HidCommand.Home) },
+                onLongClick = { hold(HidCommand.Home) },
+            )
+            RoundKey(Icons.Rounded.PlayArrow, "Play/Pause", onClick = { press(HidCommand.PlayPause) })
         }
     }
 }
@@ -326,7 +494,6 @@ private fun TouchpadPane(viewModel: AppViewModel, press: (HidCommand) -> Unit) {
 private fun AppsPane(viewModel: AppViewModel) {
     val apps by viewModel.apps.collectAsState()
     val error by viewModel.appsError.collectAsState()
-
     when {
         error != null -> Column(
             Modifier.fillMaxSize().padding(32.dp),
@@ -341,23 +508,30 @@ private fun AppsPane(viewModel: AppViewModel) {
             CircularProgressIndicator()
         }
         else -> LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 140.dp),
+            columns = GridCells.Adaptive(minSize = 150.dp),
             modifier = Modifier.fillMaxSize().padding(12.dp),
         ) {
             items(apps!!, key = { it.first }) { (bundleId, name) ->
                 ElevatedCard(
                     onClick = { viewModel.launchApp(bundleId) },
                     modifier = Modifier.padding(6.dp),
+                    shape = RoundedCornerShape(18.dp),
                 ) {
                     Column(Modifier.padding(16.dp)) {
-                        Text(name, style = MaterialTheme.typography.titleSmall, maxLines = 2)
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            bundleId,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                        )
+                        Box(
+                            Modifier.size(36.dp).clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.secondaryContainer),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                Icons.Rounded.Tv,
+                                contentDescription = null,
+                                Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        Text(name, style = MaterialTheme.typography.titleSmall, maxLines = 2, fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -365,21 +539,25 @@ private fun AppsPane(viewModel: AppViewModel) {
     }
 }
 
+/** A round tonal key; supports an optional long-press. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun DpadButton(
+private fun RoundKey(
     icon: ImageVector,
     label: String,
-    modifier: Modifier = Modifier,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
 ) {
-    IconButton(onClick = onClick, modifier = modifier.size(72.dp)) {
-        Icon(icon, contentDescription = label, Modifier.size(40.dp))
-    }
-}
-
-@Composable
-private fun RemoteKey(icon: ImageVector, label: String, onClick: () -> Unit) {
-    FilledTonalIconButton(onClick = onClick, modifier = Modifier.size(64.dp)) {
-        Icon(icon, contentDescription = label)
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier
+            .size(60.dp)
+            .clip(CircleShape)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = label, Modifier.size(26.dp))
+        }
     }
 }

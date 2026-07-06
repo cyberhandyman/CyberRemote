@@ -133,7 +133,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val connection = CompanionConnection(transport)
             connection.start()
             pairingConnection = connection
-            val setup = PairSetup(connection, name = "Companion Remote")
+            val setup = PairSetup(connection, name = "CyberRemote")
             setup.startPairing()
             pairSetup = setup
             pairing.value = PairingUi(awaitingPin = true, working = false)
@@ -239,6 +239,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun pressButton(command: HidCommand) = withClient { it.pressButton(command) }
+
+    fun holdButton(command: HidCommand) = withClient { it.holdButton(command) }
 
     // Keyboard (M6): mirror the phone's edit buffer to the TV field
 
