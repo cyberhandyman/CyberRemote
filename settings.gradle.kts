@@ -17,3 +17,4 @@ rootProject.name = "companion-remote"
 
 include(":protocol")
 include(":cli")
+include(":app")

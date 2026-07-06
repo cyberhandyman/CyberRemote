@@ -32,7 +32,7 @@ Contents/Home`), Gradle 8.14.3 (wrapper), Android SDK at
 | M2 frame codec/session | done | Transport abstraction, XID matching, segmented reads, cipher hook |
 | M3 HAP crypto+pairing | done (code+tests) | srptools golden vector + fake-ATV integration; NEEDS REAL DEVICE |
 | M4 commands | done (code+tests) | connect sequence, HID, apps, power, touch; NEEDS REAL DEVICE |
-| M5 Android app v0.1 | pending | |
+| M5 Android app v0.1 | done (code) | assembleDebug green; NEEDS REAL DEVICE for daily-drive |
 | M6 RTI keyboard | pending | |
 | M7 touchpad+apps | pending | |
 | M8 release polish | pending | |
