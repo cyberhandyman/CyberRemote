@@ -37,17 +37,26 @@ import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Gamepad
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Clear
+import androidx.compose.material.icons.rounded.Computer
+import androidx.compose.material.icons.rounded.FitnessCenter
+import androidx.compose.material.icons.rounded.FlightTakeoff
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.KeyboardReturn
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Podcasts
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Tv
+import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -117,6 +126,27 @@ private fun appInitial(name: String): String =
     name.trim().firstOrNull()?.toString()?.uppercase() ?: "?"
 
 /**
+ * Semantic icons + brand-ish colours for Apple's built-in tvOS apps, which
+ * aren't in the iTunes catalog (so real artwork can't be fetched). Generic
+ * Material icons — no Apple artwork — keep this copyright-clean.
+ */
+private fun systemAppIcon(bundleId: String): Pair<ImageVector, Color>? = when (bundleId) {
+    "com.apple.TVSettings" -> Icons.Rounded.Settings to Color(0xFF8E8E93)
+    "com.apple.TVMusic" -> Icons.Rounded.MusicNote to Color(0xFFFA243C)
+    "com.apple.podcasts" -> Icons.Rounded.Podcasts to Color(0xFF9B4DE0)
+    "com.apple.TVPhotos" -> Icons.Rounded.PhotoLibrary to Color(0xFFF5A623)
+    "com.apple.Fitness" -> Icons.Rounded.FitnessCenter to Color(0xFF30D158)
+    "com.apple.Sing" -> Icons.Rounded.Mic to Color(0xFF5E5CE6)
+    "com.apple.TVSearch" -> Icons.Rounded.Search to Color(0xFF8E8E93)
+    "com.apple.TVWatchList" -> Icons.Rounded.Tv to Color(0xFF1C1C1E)
+    "com.apple.TVAppStore" -> Icons.Rounded.Apps to Color(0xFF0D96F6)
+    "com.apple.facetime" -> Icons.Rounded.Videocam to Color(0xFF34C759)
+    "com.apple.TVHomeSharing" -> Icons.Rounded.Computer to Color(0xFF8E8E93)
+    "com.apple.TestFlight" -> Icons.Rounded.FlightTakeoff to Color(0xFF0D96F6)
+    else -> null
+}
+
+/**
  * An app tile icon: a generated initial+colour tile by default, or the real
  * App Store artwork when the user has opted into network fetching.
  */
@@ -124,6 +154,20 @@ private fun appInitial(name: String): String =
 private fun AppIcon(bundleId: String, name: String, fetchIcons: Boolean) {
     val shape = RoundedCornerShape(12.dp)
     val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Apple's built-in apps get a semantic icon; fetching is pointless (they
+    // aren't in the catalog).
+    val system = systemAppIcon(bundleId)
+    if (system != null) {
+        Box(
+            Modifier.size(44.dp).clip(shape).background(system.second),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(system.first, contentDescription = name, Modifier.size(26.dp), tint = Color.White)
+        }
+        return
+    }
+
     val artwork by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(
         initialValue = null,
         key1 = bundleId,
