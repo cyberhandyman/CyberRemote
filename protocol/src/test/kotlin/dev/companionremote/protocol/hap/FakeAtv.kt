@@ -43,6 +43,12 @@ class FakeAtv(private val pin: String) {
     /** Handler for decrypted E_OPACK requests once the session is encrypted. */
     var requestHandler: ((Map<Any?, Any?>) -> Map<String, Any?>?)? = null
 
+    /** Decrypted E_OPACK requests (`_t` = 2) in arrival order. */
+    val requestLog = mutableListOf<Map<Any?, Any?>>()
+
+    /** Decrypted E_OPACK events (`_t` = 1) in arrival order. */
+    val eventLog = mutableListOf<Map<Any?, Any?>>()
+
     private val n = HapSrpClient.N
     private val g = HapSrpClient.G
 
@@ -234,12 +240,22 @@ class FakeAtv(private val pin: String) {
     }
 
     private fun handleOpack(message: Map<Any?, Any?>): Map<String, Any?>? {
-        val handler = requestHandler ?: return null
-        val content = handler(message) ?: return null
-        return mapOf(
-            "_t" to 3L,
-            "_x" to (message["_x"] as Long),
-        ) + content
+        when (message["_t"]) {
+            1L -> {
+                eventLog.add(message)
+                return null // events get no response
+            }
+            2L -> {
+                requestLog.add(message)
+                val content = requestHandler?.invoke(message)
+                    ?: mapOf("_c" to emptyMap<String, Any?>())
+                return mapOf(
+                    "_t" to 3L,
+                    "_x" to (message["_x"] as Long),
+                ) + content
+            }
+            else -> return null
+        }
     }
 }
 

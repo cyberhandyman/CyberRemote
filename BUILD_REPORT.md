@@ -31,7 +31,7 @@ Contents/Home`), Gradle 8.14.3 (wrapper), Android SDK at
 | M1 OPACK+TLV8 | done | all pyatv vectors ported (incl. 257×2 pointer vector), green first run |
 | M2 frame codec/session | done | Transport abstraction, XID matching, segmented reads, cipher hook |
 | M3 HAP crypto+pairing | done (code+tests) | srptools golden vector + fake-ATV integration; NEEDS REAL DEVICE |
-| M4 commands | pending | |
+| M4 commands | done (code+tests) | connect sequence, HID, apps, power, touch; NEEDS REAL DEVICE |
 | M5 Android app v0.1 | pending | |
 | M6 RTI keyboard | pending | |
 | M7 touchpad+apps | pending | |

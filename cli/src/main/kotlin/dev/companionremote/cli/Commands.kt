@@ -1,5 +1,7 @@
 package dev.companionremote.cli
 
+import dev.companionremote.protocol.client.CompanionClient
+import dev.companionremote.protocol.client.HidCommand
 import dev.companionremote.protocol.companion.CompanionConnection
 import dev.companionremote.protocol.crypto.CompanionSessionCipher
 import dev.companionremote.protocol.hap.HapCredentials
@@ -19,7 +21,82 @@ class Commands(private val options: Map<String, String>) {
             "scan" -> scan()
             "pair" -> pair()
             "verify" -> verify()
+            "command" -> button(positional.firstOrNull() ?: fail("command name required"))
+            "apps" -> withClient { client ->
+                for ((bundleId, appName) in client.appList().toList().sortedBy { it.second }) {
+                    println("%-40s %s".format(bundleId, appName))
+                }
+            }
+            "launch" -> withClient { client ->
+                client.launchApp(positional.firstOrNull() ?: fail("bundle id required"))
+                println("launched")
+            }
+            "power" -> withClient { client ->
+                val state = client.fetchAttentionState()
+                println("power state: ${state ?: "unknown (not supported by this tvOS; use events)"}")
+            }
+            "swipe" -> swipe(positional.firstOrNull() ?: fail("direction required"))
+            "tap" -> withClient { client -> client.tap(); println("tap sent") }
             else -> fail("unknown command: $command")
+        }
+    }
+
+    private suspend fun button(name: String) {
+        val command = when (name.lowercase()) {
+            "up" -> HidCommand.Up
+            "down" -> HidCommand.Down
+            "left" -> HidCommand.Left
+            "right" -> HidCommand.Right
+            "menu", "back" -> HidCommand.Menu
+            "select" -> HidCommand.Select
+            "home" -> HidCommand.Home
+            "volume_up" -> HidCommand.VolumeUp
+            "volume_down" -> HidCommand.VolumeDown
+            "siri" -> HidCommand.Siri
+            "screensaver" -> HidCommand.Screensaver
+            "sleep" -> HidCommand.Sleep
+            "wake" -> HidCommand.Wake
+            "play_pause" -> HidCommand.PlayPause
+            "channel_up" -> HidCommand.ChannelIncrement
+            "channel_down" -> HidCommand.ChannelDecrement
+            "guide" -> HidCommand.Guide
+            "page_up" -> HidCommand.PageUp
+            "page_down" -> HidCommand.PageDown
+            else -> fail("unknown button: $name")
+        }
+        withClient { client ->
+            when (command) {
+                HidCommand.Wake -> client.wake()
+                HidCommand.Sleep -> client.sleep()
+                else -> client.pressButton(command)
+            }
+            println("$name sent")
+        }
+    }
+
+    private suspend fun swipe(direction: String) {
+        withClient { client ->
+            when (direction.lowercase()) {
+                "up" -> client.swipe(500, 750, 500, 250, 300)
+                "down" -> client.swipe(500, 250, 500, 750, 300)
+                "left" -> client.swipe(750, 500, 250, 500, 300)
+                "right" -> client.swipe(250, 500, 750, 500, 300)
+                else -> fail("unknown swipe direction: $direction")
+            }
+            println("swipe $direction sent")
+        }
+    }
+
+    /** Connect + verify + connect-sequence, run [block], then tear down. */
+    internal suspend fun withClient(block: suspend (CompanionClient) -> Unit) {
+        val (host, transport) = connectTransport()
+        val credentials = loadCredentials(host)
+        val client = CompanionClient(CompanionConnection(transport), credentials)
+        try {
+            client.connect()
+            block(client)
+        } finally {
+            runCatching { client.disconnect() }
         }
     }
 
