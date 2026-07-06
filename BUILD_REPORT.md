@@ -29,7 +29,7 @@ Contents/Home`), Gradle 8.14.3 (wrapper), Android SDK at
 |---|--------|-------|
 | M0 scaffold | done | Gradle 8.14.3 wrapper, :protocol+:cli, version catalog, CI, MIT |
 | M1 OPACK+TLV8 | done | all pyatv vectors ported (incl. 257×2 pointer vector), green first run |
-| M2 frame codec/session | pending | |
+| M2 frame codec/session | done | Transport abstraction, XID matching, segmented reads, cipher hook |
 | M3 HAP crypto+pairing | pending | |
 | M4 commands | pending | |
 | M5 Android app v0.1 | pending | |
