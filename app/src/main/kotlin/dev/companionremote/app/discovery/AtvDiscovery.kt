@@ -5,6 +5,9 @@ import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.net.wifi.WifiManager
 import kotlin.coroutines.resume
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -70,18 +73,24 @@ class AtvDiscovery(context: Context) {
     }
 
     /**
-     * Re-resolve the current host/port for a service by name. The Companion
-     * port is ephemeral (changes after reboot) so this runs on every connect.
+     * Re-resolve the current host/port for a service by name, returning as
+     * soon as it is found. The Companion port is ephemeral (changes after
+     * reboot) so this runs on every connect.
      */
-    suspend fun resolveByName(name: String, timeoutMs: Long = 6_000): DiscoveredAtv? {
-        var result: DiscoveredAtv? = null
+    suspend fun resolveByName(name: String, timeoutMs: Long = 6_000): DiscoveredAtv? =
         withTimeoutOrNull(timeoutMs) {
-            scan(timeoutMs) { device ->
-                if (device.name == name && result == null) result = device
+            coroutineScope {
+                val found = CompletableDeferred<DiscoveredAtv>()
+                val scanJob = launch {
+                    scan(timeoutMs) { device ->
+                        if (device.name == name) found.complete(device)
+                    }
+                }
+                val device = found.await()
+                scanJob.cancel()
+                device
             }
         }
-        return result
-    }
 
     @Suppress("DEPRECATION")
     private suspend fun resolve(info: NsdServiceInfo): DiscoveredAtv? =

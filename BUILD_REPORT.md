@@ -35,7 +35,7 @@ Contents/Home`), Gradle 8.14.3 (wrapper), Android SDK at
 | M5 Android app v0.1 | done (code) | assembleDebug green; NEEDS REAL DEVICE for daily-drive |
 | M6 RTI keyboard | done (code+tests) | bplist codec byte-identical w plistlib; NEEDS REAL DEVICE (CJK/emoji/secure) |
 | M7 touchpad+apps | done (code+tests) | ordered touch channel, app grid; NEEDS REAL DEVICE |
-| M8 release polish | pending | |
+| M8 release polish | done | README+FAQ, CONTRIBUTING, issue templates, release workflow, signed-or-debug assembleRelease green, v1.0.0 tag local |
 
 ## Key decisions
 
@@ -88,5 +88,17 @@ Contents/Home`), Gradle 8.14.3 (wrapper), Android SDK at
   CLAUDE.md gotcha 7); reconnect storm-guard is basic (exponential backoff,
   cap 30 s) — tune on device.
 - CI release workflow (tag → signed APK) exercised only up to assembleRelease
-  locally; the signing-secret path runs first on a real tag.
+  locally; the signing-secret path runs first on a real tag. The tag v1.0.0
+  exists locally only — push it (with signing secrets configured) to publish.
 - Android app has no instrumentation tests (unit tests only in :protocol).
+- pyatv restarts the RTI session (`_tiStop`+`_tiStart`) on every text
+  command; with the app's per-keystroke (debounced 250 ms) textSet this may
+  feel laggy on device — if so, cache the sessionUUID from focus events
+  instead of restarting (a deviation from pyatv, so only with device proof).
+- App keyboard has no "return/submit" key mapping (pyatv has none either);
+  tvOS search fields filter live, so likely fine.
+- `resolveByName` re-scans mDNS on every (re)connect; if mDNS fails the app
+  falls back to the last known host:port — after a reboot on a network
+  without mDNS, manual IP entry is the only path.
+- FetchLaunchableApplicationsEvent may require user-account permissions on
+  multi-user tvOS; error path surfaces the device's `_em` string.
