@@ -1,0 +1,6 @@
+[submodule "references/pyatv"]
+	path = references/pyatv
+	url = https://github.com/postlund/pyatv
+[submodule "references/node-appletv-remote"]
+	path = references/node-appletv-remote
+	url = https://github.com/energee/node-appletv-remote
