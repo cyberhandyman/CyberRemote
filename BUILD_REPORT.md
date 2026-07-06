@@ -64,10 +64,10 @@ Verified 2026-07-06 against an Apple TV 4K (AppleTV14,1) at 192.168.50.173.
 
 1. ✅ `cli pair` → PIN on TV, pairing completes, creds written (M3).
 2. ✅ `cli verify` reconnect with stored creds; session keys derived (M3).
-3. ✅ Buttons visibly work — home + arrows confirmed on screen; `power`
-   returned Awake; `apps` returned the full app map; `launch` opened the App
-   Store (M4). ⏳ wake/sleep and every remaining button not yet individually
-   exercised (low risk — same `_hidC` path).
+3. ✅ Buttons visibly work — home, arrows, select, menu, volume_up all
+   confirmed on screen; `power` returned Awake; `apps` returned the full app
+   map; `launch` opened the App Store (M4). ⏳ wake/sleep not yet exercised
+   (same `_hidC` path).
 4. ⏳ App discovery/pairing/daily-drive — APK builds; not yet run on a phone
    (M5).
 5. ✅ Keyboard: focus event detection confirmed (`_tiStarted`/`_tiStopped`);
@@ -75,7 +75,9 @@ Verified 2026-07-06 against an Apple TV 4K (AppleTV14,1) at 192.168.50.173.
    Store search box; graceful no-op when unfocused confirmed (M6). Real-
    device deviation found and fixed — see protocol-notes "RTI text-input
    focus". ⏳ secure/password fields not yet tried.
-6. ⏳ Touchpad swipe not yet tried; `apps`/`launch` ✅ via cli (M7).
+6. ✅ Touchpad swipe confirmed in all four directions (up/down/left/right
+   move the highlight; "down" on the home top row does nothing simply
+   because there's nowhere below); `apps`/`launch` ✅ via cli (M7).
 7. ⏳ Reconnect after ATV reboot (port change) / phone Wi-Fi toggle.
 8. atvproxy capture (optional) to turn real frames into regression vectors.
 
@@ -114,3 +116,10 @@ Verified 2026-07-06 against an Apple TV 4K (AppleTV14,1) at 192.168.50.173.
   without mDNS, manual IP entry is the only path.
 - FetchLaunchableApplicationsEvent may require user-account permissions on
   multi-user tvOS; error path surfaces the device's `_em` string.
+- Observed on device: a `select` press on the home screen occasionally
+  registers as a long-press (enters icon-edit / jiggle mode). `pressButton`
+  sends `_hidC` down then up as two separate encrypted round-trips, so the
+  down→up gap is one RTT; the home screen's edit-mode threshold is low
+  enough that this can trip it. Possible fix: fire the down event without
+  awaiting its response before sending up (fire-and-forget down), or add a
+  tiny fixed gap only — untested. Navigation/select inside apps was fine.
