@@ -9,13 +9,16 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -94,7 +97,7 @@ import dev.companionremote.protocol.client.KeyboardFocusState
 private val ConnectedGreen = Color(0xFF9ECE6A)
 private val ConnectingAmber = Color(0xFFE0AF68)
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun RemoteScreen(viewModel: AppViewModel, device: DiscoveredAtv) {
     val connectionState by viewModel.connectionState.collectAsState()
@@ -102,6 +105,8 @@ fun RemoteScreen(viewModel: AppViewModel, device: DiscoveredAtv) {
     val focusState by viewModel.keyboardFocus.collectAsState()
     val keyboardText by viewModel.keyboardText.collectAsState()
     val haptics = LocalHapticFeedback.current
+    val softKeyboard = LocalSoftwareKeyboardController.current
+    val imeVisible = WindowInsets.isImeVisible
     var powerMenu by remember { mutableStateOf(false) }
     var keyboardOpen by remember { mutableStateOf(false) }
     var tab by remember { mutableIntStateOf(0) }
@@ -180,10 +185,19 @@ fun RemoteScreen(viewModel: AppViewModel, device: DiscoveredAtv) {
                     deviceName = device.name,
                     onTextChange = viewModel::onKeyboardTextChanged,
                     onClear = { viewModel.clearKeyboardText() },
+                    onHide = {
+                        keyboardOpen = false
+                        softKeyboard?.hide()
+                    },
                 )
-                // Compact controls live directly under the field, above the
-                // soft keyboard — so OK / down are always reachable.
-                CompactDpad(press = ::press, ok = ::ok)
+                // Only shrink to the compact layout when the soft keyboard is
+                // actually up (stealing screen space). If it's dismissed, keep
+                // the full remote so it doesn't look cramped.
+                if (imeVisible) {
+                    CompactRemote(press = ::press, hold = ::hold, ok = ::ok)
+                } else {
+                    DpadPane(press = ::press, hold = ::hold, ok = ::ok, openKeyboard = { softKeyboard?.show() })
+                }
             } else {
                 when (tab) {
                     0 -> DpadPane(press = ::press, hold = ::hold, ok = ::ok) { keyboardOpen = true }
@@ -261,26 +275,32 @@ private fun KeyboardBar(
     deviceName: String,
     onTextChange: (String) -> Unit,
     onClear: () -> Unit,
+    onHide: () -> Unit,
 ) {
     val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
     val softKeyboard = LocalSoftwareKeyboardController.current
-    OutlinedTextField(
-        value = text,
-        onValueChange = onTextChange,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .focusRequester(focusRequester),
-        shape = RoundedCornerShape(16.dp),
-        label = { Text(if (focused) "Typing on $deviceName" else "No text field focused on the TV") },
-        enabled = focused,
-        singleLine = true,
-        trailingIcon = {
-            IconButton(onClick = onClear) {
-                Icon(Icons.Rounded.Clear, contentDescription = "Clear TV text")
-            }
-        },
-    )
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        OutlinedTextField(
+            value = text,
+            onValueChange = onTextChange,
+            modifier = Modifier.weight(1f).focusRequester(focusRequester),
+            shape = RoundedCornerShape(16.dp),
+            label = { Text(if (focused) "Typing on $deviceName" else "No text field focused on the TV") },
+            enabled = focused,
+            singleLine = true,
+            trailingIcon = {
+                IconButton(onClick = onClear) {
+                    Icon(Icons.Rounded.Clear, contentDescription = "Clear TV text")
+                }
+            },
+        )
+        IconButton(onClick = onHide) {
+            Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Hide keyboard, back to remote")
+        }
+    }
     LaunchedEffect(focused) {
         if (focused) {
             focusRequester.requestFocus()
@@ -386,46 +406,80 @@ private fun VolumePill(press: (HidCommand) -> Unit) {
     }
 }
 
-/** Compact cross of arrows + OK, shown above the soft keyboard. */
+/**
+ * Compact but complete remote shown above the soft keyboard: a properly
+ * aligned arrow cross with OK in the middle, plus a row of back / home
+ * (long-press = Control Center) / play / volume so nothing is missing.
+ */
 @Composable
-private fun CompactDpad(press: (HidCommand) -> Unit, ok: () -> Unit) {
+private fun CompactRemote(
+    press: (HidCommand) -> Unit,
+    hold: (HidCommand) -> Unit,
+    ok: () -> Unit,
+) {
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
+        // Up, OK, Down share the centre column, so they line up vertically.
         MiniKey(Icons.Rounded.KeyboardArrowUp, "Up") { press(HidCommand.Up) }
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
             MiniKey(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "Left") { press(HidCommand.Left) }
             Surface(
                 onClick = ok,
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.size(56.dp).padding(4.dp),
+                modifier = Modifier.size(56.dp),
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text("OK", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text(
+                        "OK",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
                 }
             }
             MiniKey(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "Right") { press(HidCommand.Right) }
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            MiniKey(Icons.Rounded.KeyboardArrowDown, "Down") { press(HidCommand.Down) }
-            Spacer(Modifier.width(8.dp))
+        MiniKey(Icons.Rounded.KeyboardArrowDown, "Down") { press(HidCommand.Down) }
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             MiniKey(Icons.AutoMirrored.Filled.ArrowBack, "Back") { press(HidCommand.Menu) }
+            MiniKey(
+                Icons.Rounded.Home,
+                "Home (hold: Control Center)",
+                onLongClick = { hold(HidCommand.Home) },
+            ) { press(HidCommand.Home) }
+            MiniKey(Icons.Rounded.PlayArrow, "Play/Pause") { press(HidCommand.PlayPause) }
+            MiniKey(Icons.Rounded.Remove, "Volume down") { press(HidCommand.VolumeDown) }
+            MiniKey(Icons.Rounded.Add, "Volume up") { press(HidCommand.VolumeUp) }
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MiniKey(icon: ImageVector, label: String, onClick: () -> Unit) {
+private fun MiniKey(
+    icon: ImageVector,
+    label: String,
+    onLongClick: (() -> Unit)? = null,
+    onClick: () -> Unit,
+) {
     Surface(
-        onClick = onClick,
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = Modifier.size(52.dp).padding(4.dp),
+        modifier = Modifier
+            .size(52.dp)
+            .clip(CircleShape)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = label, Modifier.size(26.dp))
+            Icon(icon, contentDescription = label, Modifier.size(24.dp))
         }
     }
 }
