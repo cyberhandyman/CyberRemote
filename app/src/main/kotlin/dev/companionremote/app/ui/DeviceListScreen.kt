@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -44,10 +45,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.companionremote.app.AppViewModel
+import dev.companionremote.app.i18n.LocalAppStrings
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeviceListScreen(viewModel: AppViewModel) {
+    val s = LocalAppStrings.current
     val ui by viewModel.deviceList.collectAsState()
     var showManualDialog by remember { mutableStateOf(false) }
 
@@ -60,21 +63,24 @@ fun DeviceListScreen(viewModel: AppViewModel) {
                 ),
                 title = {
                     Text(
-                        "CyberRemote",
+                        s.appName,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold,
                     )
                 },
                 actions = {
                     IconButton(onClick = { showManualDialog = true }) {
-                        Icon(Icons.Rounded.Link, contentDescription = "Connect by IP")
+                        Icon(Icons.Rounded.Link, contentDescription = s.connectByIp)
                     }
                     if (ui.scanning) {
                         CircularProgressIndicator(Modifier.size(22.dp).padding(end = 10.dp), strokeWidth = 2.dp)
                     } else {
                         IconButton(onClick = { viewModel.startScan() }) {
-                            Icon(Icons.Rounded.Refresh, contentDescription = "Rescan")
+                            Icon(Icons.Rounded.Refresh, contentDescription = s.rescan)
                         }
+                    }
+                    IconButton(onClick = { viewModel.openSettings() }) {
+                        Icon(Icons.Rounded.Settings, contentDescription = s.settings)
                     }
                 },
             )
@@ -99,13 +105,13 @@ fun DeviceListScreen(viewModel: AppViewModel) {
                 }
                 Spacer(Modifier.height(24.dp))
                 Text(
-                    if (ui.scanning) "Looking for your Apple TV…" else "No Apple TV found",
+                    if (ui.scanning) s.lookingForAtv else s.noAtvFound,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Medium,
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Your phone and Apple TV must be on the same Wi-Fi network.",
+                    s.sameWifiHint,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -149,14 +155,14 @@ fun DeviceListScreen(viewModel: AppViewModel) {
                                 Text(
                                     listOfNotNull(
                                         device.model,
-                                        if (device.name in ui.pairedNames) "Paired" else "Tap to pair",
+                                        if (device.name in ui.pairedNames) s.paired else s.tapToPair,
                                     ).joinToString("  ·  "),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                             if (device.name in ui.pairedNames) {
-                                TextButton(onClick = { viewModel.forgetDevice(device) }) { Text("Forget") }
+                                TextButton(onClick = { viewModel.forgetDevice(device) }) { Text(s.forget) }
                             }
                         }
                     }
@@ -170,18 +176,14 @@ fun DeviceListScreen(viewModel: AppViewModel) {
         var port by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showManualDialog = false },
-            title = { Text("Connect by IP") },
+            title = { Text(s.connectByIp) },
             text = {
                 Column {
-                    Text(
-                        "For networks where discovery doesn't work. The port " +
-                            "changes after every Apple TV reboot.",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                    Text(s.connectByIpDesc, style = MaterialTheme.typography.bodySmall)
                     Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(host, { host = it }, label = { Text("IP address") }, singleLine = true)
+                    OutlinedTextField(host, { host = it }, label = { Text(s.ipAddress) }, singleLine = true)
                     Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(port, { port = it }, label = { Text("Port") }, singleLine = true)
+                    OutlinedTextField(port, { port = it }, label = { Text(s.port) }, singleLine = true)
                 }
             },
             confirmButton = {
@@ -192,9 +194,9 @@ fun DeviceListScreen(viewModel: AppViewModel) {
                             viewModel.addManualDevice(host.trim(), p)
                         }
                     },
-                ) { Text("Connect") }
+                ) { Text(s.connect) }
             },
-            dismissButton = { TextButton(onClick = { showManualDialog = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { showManualDialog = false }) { Text(s.cancel) } },
         )
     }
 }

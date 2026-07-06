@@ -13,9 +13,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.CompositionLocalProvider
+import dev.companionremote.app.i18n.LocalAppStrings
+import dev.companionremote.app.i18n.currentSystemLanguage
+import dev.companionremote.app.i18n.resolveStrings
 import dev.companionremote.app.ui.DeviceListScreen
 import dev.companionremote.app.ui.PairingScreen
 import dev.companionremote.app.ui.RemoteScreen
+import dev.companionremote.app.ui.SettingsScreen
 
 class MainActivity : ComponentActivity() {
 
@@ -26,11 +31,16 @@ class MainActivity : ComponentActivity() {
         setContent {
             CompanionTheme {
                 val screen by viewModel.screen.collectAsState()
-                Surface {
-                    when (val current = screen) {
-                        is Screen.DeviceList -> DeviceListScreen(viewModel)
-                        is Screen.Pairing -> PairingScreen(viewModel, current.device)
-                        is Screen.Remote -> RemoteScreen(viewModel, current.device)
+                val language by viewModel.language.collectAsState()
+                val strings = resolveStrings(language, currentSystemLanguage())
+                CompositionLocalProvider(LocalAppStrings provides strings) {
+                    Surface {
+                        when (val current = screen) {
+                            is Screen.DeviceList -> DeviceListScreen(viewModel)
+                            is Screen.Settings -> SettingsScreen(viewModel)
+                            is Screen.Pairing -> PairingScreen(viewModel, current.device)
+                            is Screen.Remote -> RemoteScreen(viewModel, current.device)
+                        }
                     }
                 }
             }

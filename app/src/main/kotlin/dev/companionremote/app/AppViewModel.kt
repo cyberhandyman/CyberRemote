@@ -4,8 +4,14 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.companionremote.app.data.CredentialsRepository
+import dev.companionremote.app.data.SettingsRepository
 import dev.companionremote.app.discovery.AtvDiscovery
 import dev.companionremote.app.discovery.DiscoveredAtv
+import dev.companionremote.app.i18n.AppLanguage
+import dev.companionremote.app.i18n.AppStrings
+import dev.companionremote.app.i18n.EnglishStrings
+import dev.companionremote.app.i18n.currentSystemLanguage
+import dev.companionremote.app.i18n.resolveStrings
 import dev.companionremote.protocol.client.CompanionClient
 import dev.companionremote.protocol.client.HidCommand
 import dev.companionremote.protocol.client.KeyboardFocusState
@@ -24,6 +30,7 @@ import kotlinx.coroutines.launch
 /** Which screen is showing. */
 sealed interface Screen {
     data object DeviceList : Screen
+    data object Settings : Screen
     data class Pairing(val device: DiscoveredAtv) : Screen
     data class Remote(val device: DiscoveredAtv) : Screen
 }
@@ -46,12 +53,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private val discovery = AtvDiscovery(application)
     private val credentialsRepository = CredentialsRepository(application)
+    private val settingsRepository = SettingsRepository(application)
 
     val screen = MutableStateFlow<Screen>(Screen.DeviceList)
     val deviceList = MutableStateFlow(DeviceListUi())
     val pairing = MutableStateFlow(PairingUi())
     val connectionState = MutableStateFlow(ConnectionState.Disconnected)
     val connectionError = MutableStateFlow<String?>(null)
+
+    /** Language choice (persisted); drives the UI strings. */
+    val language = MutableStateFlow(AppLanguage.System)
+
+    /** Paired device names, shown in Settings for management. */
+    val pairedDevices = MutableStateFlow<List<String>>(emptyList())
+
+    // Current strings, used for error messages produced in the ViewModel.
+    private var strings: AppStrings = EnglishStrings
 
     /** Keyboard focus state on the TV (drives auto-open of the soft keyboard). */
     val keyboardFocus = MutableStateFlow(KeyboardFocusState.Unknown)
@@ -78,7 +95,38 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private var lastHoldSentAt = 0L
 
     init {
+        viewModelScope.launch {
+            settingsRepository.language.collect { lang ->
+                language.value = lang
+                strings = resolveStrings(lang, currentSystemLanguage())
+            }
+        }
         startScan()
+    }
+
+    // Settings
+
+    fun setLanguage(lang: AppLanguage) {
+        viewModelScope.launch { settingsRepository.setLanguage(lang) }
+    }
+
+    fun openSettings() {
+        viewModelScope.launch {
+            pairedDevices.value = credentialsRepository.pairedDeviceNames().sorted()
+            screen.value = Screen.Settings
+        }
+    }
+
+    fun closeSettings() {
+        screen.value = Screen.DeviceList
+    }
+
+    fun forgetDeviceByName(name: String) {
+        viewModelScope.launch {
+            credentialsRepository.delete(name)
+            pairedDevices.value = credentialsRepository.pairedDeviceNames().sorted()
+            deviceList.value = deviceList.value.copy(pairedNames = deviceList.value.pairedNames - name)
+        }
     }
 
     fun startScan() {
@@ -322,10 +370,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun sleep() = withClient { it.sleep() }
 
     private fun friendlyError(e: Exception): String = when {
-        e.message?.contains("proof mismatch") == true -> "Wrong PIN — try pairing again."
-        e.message?.contains("ECONNREFUSED") == true || e is java.net.ConnectException ->
-            "Apple TV unreachable. Check that both devices are on the same network."
-        e is java.net.SocketTimeoutException -> "Connection timed out."
+        e.message?.contains("proof mismatch") == true -> strings.wrongPin
+        e.message?.contains("ECONNREFUSED") == true || e is java.net.ConnectException -> strings.atvUnreachable
+        e is java.net.SocketTimeoutException -> strings.connectionTimedOut
         else -> e.message ?: e.javaClass.simpleName
     }
 

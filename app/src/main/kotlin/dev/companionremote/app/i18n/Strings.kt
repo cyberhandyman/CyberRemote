@@ -1,0 +1,189 @@
+package dev.companionremote.app.i18n
+
+import androidx.compose.runtime.staticCompositionLocalOf
+import java.util.Locale
+
+/** User's language choice; System follows the device locale. */
+enum class AppLanguage { System, English, Chinese }
+
+/**
+ * All user-visible strings, in one place, so the app can switch language at
+ * runtime (pure Compose state — no Activity recreation). Content descriptions
+ * for icons are left in English in the call sites; these are the visible ones.
+ */
+data class AppStrings(
+    // Device list
+    val appName: String,
+    val connectByIp: String,
+    val rescan: String,
+    val settings: String,
+    val lookingForAtv: String,
+    val noAtvFound: String,
+    val sameWifiHint: String,
+    val paired: String,
+    val tapToPair: String,
+    val forget: String,
+    val connectByIpDesc: String,
+    val ipAddress: String,
+    val port: String,
+    val connect: String,
+    val cancel: String,
+    // Pairing
+    val pairingWith: String,
+    val enterPin: String,
+    val pin: String,
+    val pair: String,
+    val tryAgain: String,
+    val contactingAtv: String,
+    val hardRebootHint: String,
+    val wrongPin: String,
+    val atvUnreachable: String,
+    val connectionTimedOut: String,
+    // Remote
+    val connected: String,
+    val connecting: String,
+    val disconnected: String,
+    val tabRemote: String,
+    val tabTouch: String,
+    val tabApps: String,
+    val wake: String,
+    val sleep: String,
+    val reconnect: String,
+    val connectionLost: String,
+    val typingOn: String,
+    val noFieldFocused: String,
+    val swipeHint: String,
+    val retry: String,
+    // Settings
+    val language: String,
+    val languageSystem: String,
+    val languageEnglish: String,
+    val languageChinese: String,
+    val pairedDevices: String,
+    val noPairedDevices: String,
+    val sendFeedback: String,
+    val feedbackDesc: String,
+    val emailCopied: String,
+    val about: String,
+    val aboutText: String,
+)
+
+val EnglishStrings = AppStrings(
+    appName = "CyberRemote",
+    connectByIp = "Connect by IP",
+    rescan = "Rescan",
+    settings = "Settings",
+    lookingForAtv = "Looking for your Apple TV…",
+    noAtvFound = "No Apple TV found",
+    sameWifiHint = "Your phone and Apple TV must be on the same Wi-Fi network.",
+    paired = "Paired",
+    tapToPair = "Tap to pair",
+    forget = "Forget",
+    connectByIpDesc = "For networks where discovery doesn't work. The port changes after every Apple TV reboot.",
+    ipAddress = "IP address",
+    port = "Port",
+    connect = "Connect",
+    cancel = "Cancel",
+    pairingWith = "Pairing with %s",
+    enterPin = "Enter the 4-digit PIN shown on your TV",
+    pin = "PIN",
+    pair = "Pair",
+    tryAgain = "Try again",
+    contactingAtv = "Contacting Apple TV…",
+    hardRebootHint = "Just hard-restarted the Apple TV, or after a power cut? Give it about a minute to come back before it appears here.",
+    wrongPin = "Wrong PIN — try pairing again.",
+    atvUnreachable = "Apple TV unreachable. Check that both devices are on the same network.",
+    connectionTimedOut = "Connection timed out.",
+    connected = "Connected",
+    connecting = "Connecting…",
+    disconnected = "Disconnected",
+    tabRemote = "Remote",
+    tabTouch = "Touch",
+    tabApps = "Apps",
+    wake = "Wake",
+    sleep = "Sleep",
+    reconnect = "Reconnect",
+    connectionLost = "Connection lost",
+    typingOn = "Typing on %s",
+    noFieldFocused = "No text field focused on the TV",
+    swipeHint = "Swipe to navigate · Tap to select",
+    retry = "Retry",
+    language = "Language",
+    languageSystem = "System default",
+    languageEnglish = "English",
+    languageChinese = "中文",
+    pairedDevices = "Paired Apple TVs",
+    noPairedDevices = "No paired devices yet",
+    sendFeedback = "Send feedback",
+    feedbackDesc = "Tap to copy the developer's email, then write anytime.",
+    emailCopied = "Email copied to clipboard",
+    about = "About",
+    aboutText = "An open-source Apple TV remote. Not affiliated with Apple Inc.",
+)
+
+val ChineseStrings = AppStrings(
+    appName = "CyberRemote",
+    connectByIp = "手动输入 IP 连接",
+    rescan = "重新扫描",
+    settings = "设置",
+    lookingForAtv = "正在查找你的 Apple TV…",
+    noAtvFound = "未找到 Apple TV",
+    sameWifiHint = "手机和 Apple TV 需要连接同一个 Wi-Fi 网络。",
+    paired = "已配对",
+    tapToPair = "点击配对",
+    forget = "取消配对",
+    connectByIpDesc = "适用于无法自动发现的网络。Apple TV 每次重启后端口都会变化。",
+    ipAddress = "IP 地址",
+    port = "端口",
+    connect = "连接",
+    cancel = "取消",
+    pairingWith = "正在与 %s 配对",
+    enterPin = "输入电视上显示的 4 位配对码",
+    pin = "配对码",
+    pair = "配对",
+    tryAgain = "重试",
+    contactingAtv = "正在连接 Apple TV…",
+    hardRebootHint = "刚硬重启了 Apple TV，或者刚断电重启？请等待约 1 分钟，它才会重新出现在这里。",
+    wrongPin = "配对码错误，请重新配对。",
+    atvUnreachable = "无法连接到 Apple TV，请确认两台设备在同一网络。",
+    connectionTimedOut = "连接超时。",
+    connected = "已连接",
+    connecting = "连接中…",
+    disconnected = "已断开",
+    tabRemote = "遥控",
+    tabTouch = "触控板",
+    tabApps = "应用",
+    wake = "唤醒",
+    sleep = "睡眠",
+    reconnect = "重新连接",
+    connectionLost = "连接已断开",
+    typingOn = "正在向 %s 输入",
+    noFieldFocused = "电视上没有聚焦的输入框",
+    swipeHint = "滑动导航 · 轻点选择",
+    retry = "重试",
+    language = "语言",
+    languageSystem = "跟随系统",
+    languageEnglish = "English",
+    languageChinese = "中文",
+    pairedDevices = "已配对的 Apple TV",
+    noPairedDevices = "还没有配对的设备",
+    sendFeedback = "反馈问题",
+    feedbackDesc = "点击复制开发者邮箱，随时来信。",
+    emailCopied = "邮箱已复制到剪贴板",
+    about = "关于",
+    aboutText = "一个开源的 Apple TV 遥控器。与 Apple Inc. 无关。",
+)
+
+/** The developer's feedback email. */
+const val FEEDBACK_EMAIL = "realcyberhandyman@gmail.com"
+
+/** Resolve the active strings from the user's choice and the system locale. */
+fun resolveStrings(language: AppLanguage, systemLanguage: String): AppStrings = when (language) {
+    AppLanguage.English -> EnglishStrings
+    AppLanguage.Chinese -> ChineseStrings
+    AppLanguage.System -> if (systemLanguage.startsWith("zh")) ChineseStrings else EnglishStrings
+}
+
+fun currentSystemLanguage(): String = Locale.getDefault().language
+
+val LocalAppStrings = staticCompositionLocalOf { EnglishStrings }
