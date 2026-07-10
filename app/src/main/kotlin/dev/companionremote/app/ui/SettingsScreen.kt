@@ -23,7 +23,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.MailOutline
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Tv
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,12 +47,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.companionremote.app.AppViewModel
+import dev.companionremote.app.DeviceVerify
 import dev.companionremote.app.R
 import dev.companionremote.app.data.AppSkin
 import dev.companionremote.app.data.HapticStrength
@@ -74,6 +78,8 @@ fun SettingsScreen(viewModel: AppViewModel) {
     val autoCheckUpdates by viewModel.autoCheckUpdates.collectAsState()
     val autoDownloadUpdates by viewModel.autoDownloadUpdates.collectAsState()
     val paired by viewModel.pairedDevices.collectAsState()
+    val activeDevice by viewModel.activeDeviceName.collectAsState()
+    val deviceVerify by viewModel.deviceVerify.collectAsState()
     val clipboard = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -97,6 +103,29 @@ fun SettingsScreen(viewModel: AppViewModel) {
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
         ) {
+            // Paired Apple TVs (top of the list)
+            SectionTitle(s.pairedDevices)
+            SettingsCard {
+                if (paired.isEmpty()) {
+                    Text(
+                        s.noPairedDevices,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(16.dp),
+                    )
+                } else {
+                    paired.forEach { name ->
+                        PairedDeviceRow(
+                            name = name,
+                            inUse = name == activeDevice,
+                            verify = deviceVerify[name] ?: DeviceVerify.Idle,
+                            onRefresh = { viewModel.verifyDevice(name) },
+                            onForget = { viewModel.forgetDeviceByName(name) },
+                        )
+                    }
+                }
+            }
+
             // Appearance
             SectionTitle(s.theme)
             SettingsCard {
@@ -173,45 +202,6 @@ fun SettingsScreen(viewModel: AppViewModel) {
                         )
                     }
                     Switch(checked = fetchIcons, onCheckedChange = { viewModel.setFetchAppIcons(it) })
-                }
-            }
-
-            // Paired Apple TVs
-            SectionTitle(s.pairedDevices)
-            SettingsCard {
-                if (paired.isEmpty()) {
-                    Text(
-                        s.noPairedDevices,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(16.dp),
-                    )
-                } else {
-                    paired.forEach { name ->
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(
-                                painterResource(R.drawable.ic_apple),
-                                contentDescription = null,
-                                Modifier.size(22.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Text(
-                                name,
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.padding(start = 16.dp).weight(1f),
-                            )
-                            IconButton(onClick = { viewModel.forgetDeviceByName(name) }) {
-                                Icon(
-                                    Icons.Rounded.DeleteOutline,
-                                    contentDescription = s.forget,
-                                    tint = MaterialTheme.colorScheme.error,
-                                )
-                            }
-                        }
-                    }
                 }
             }
 
@@ -333,6 +323,73 @@ private fun OptionRow(label: String, selected: Boolean, onSelect: () -> Unit) {
     ) {
         RadioButton(selected = selected, onClick = onSelect)
         Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 8.dp))
+    }
+}
+
+private val PairedOkGreen = Color(0xFF34C759)
+
+@Composable
+private fun PairedDeviceRow(
+    name: String,
+    inUse: Boolean,
+    verify: DeviceVerify,
+    onRefresh: () -> Unit,
+    onForget: () -> Unit,
+) {
+    val s = LocalAppStrings.current
+    Row(
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painterResource(R.drawable.ic_apple),
+            contentDescription = null,
+            Modifier.size(22.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Column(Modifier.padding(start = 16.dp).weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(name, style = MaterialTheme.typography.bodyLarge)
+                if (verify == DeviceVerify.Ok) {
+                    Spacer(Modifier.size(8.dp))
+                    Box(Modifier.size(9.dp).clip(CircleShape).background(PairedOkGreen))
+                }
+            }
+            when {
+                inUse -> Text(
+                    s.inUse,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Medium,
+                )
+                verify == DeviceVerify.Ok -> Text(
+                    s.paired,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = PairedOkGreen,
+                )
+                verify == DeviceVerify.Failed -> Text(
+                    s.atvUnreachable,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+        if (verify == DeviceVerify.Checking) {
+            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+            }
+        } else {
+            IconButton(onClick = onRefresh) {
+                Icon(
+                    Icons.Rounded.Refresh,
+                    contentDescription = s.checkNow,
+                    tint = if (verify == DeviceVerify.Ok) PairedOkGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        IconButton(onClick = onForget) {
+            Icon(Icons.Rounded.DeleteOutline, contentDescription = s.forget, tint = MaterialTheme.colorScheme.error)
+        }
     }
 }
 

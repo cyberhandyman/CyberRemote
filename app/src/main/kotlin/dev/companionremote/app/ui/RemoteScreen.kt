@@ -553,19 +553,26 @@ private fun DialArrow(icon: ImageVector, label: String, modifier: Modifier = Mod
 }
 
 /**
- * Vertical volume control: tap + / − to step, or drag up/down to scrub. Drag
- * fires one volume step every ~24 dp so a swipe changes several notches.
+ * Vertical volume control. Tapping the top half raises the volume and the
+ * bottom half lowers it; dragging up/down scrubs (one step per ~22 dp). Both
+ * gestures live on the whole pill — separate pointerInput blocks so a tap and
+ * a drag don't fight each other (the earlier IconButton version swallowed the
+ * drag, so swiping did nothing).
  */
 @Composable
 private fun VolumeSlider(onStep: (Boolean) -> Unit, onTap: (Boolean) -> Unit) {
-    Column(
+    val shape = RoundedCornerShape(34.dp)
+    Box(
         Modifier
-            .width(72.dp)
-            .height(184.dp)
-            .glass(RoundedCornerShape(36.dp))
+            .width(64.dp)
+            .height(172.dp)
+            .glass(shape)
+            .pointerInput(Unit) {
+                detectTapGestures { offset -> onTap(offset.y < size.height / 2f) }
+            }
             .pointerInput(Unit) {
                 var acc = 0f
-                val step = 24.dp.toPx()
+                val step = 22.dp.toPx()
                 detectVerticalDragGestures(
                     onDragEnd = { acc = 0f },
                     onDragCancel = { acc = 0f },
@@ -576,19 +583,28 @@ private fun VolumeSlider(onStep: (Boolean) -> Unit, onTap: (Boolean) -> Unit) {
                     while (acc >= step) { onStep(false); acc -= step }   // down = softer
                 }
             },
-        horizontalAlignment = Alignment.CenterHorizontally,
+        contentAlignment = Alignment.Center,
     ) {
-        IconButton(onClick = { onTap(true) }, modifier = Modifier.weight(1f).fillMaxWidth()) {
-            Icon(Icons.Rounded.Add, contentDescription = "Volume up", Modifier.size(26.dp))
-        }
-        Text(
-            "VOL",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        // Faint track hint that the pill is swipeable.
+        Box(
+            Modifier
+                .width(4.dp)
+                .height(64.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)),
         )
-        IconButton(onClick = { onTap(false) }, modifier = Modifier.weight(1f).fillMaxWidth()) {
-            Icon(Icons.Rounded.Remove, contentDescription = "Volume down", Modifier.size(26.dp))
-        }
+        Icon(
+            Icons.Rounded.Add,
+            contentDescription = "Volume up",
+            Modifier.align(Alignment.TopCenter).padding(top = 18.dp).size(26.dp),
+            tint = MaterialTheme.colorScheme.onSurface,
+        )
+        Icon(
+            Icons.Rounded.Remove,
+            contentDescription = "Volume down",
+            Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp).size(26.dp),
+            tint = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 

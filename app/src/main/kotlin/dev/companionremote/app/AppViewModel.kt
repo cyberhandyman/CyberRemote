@@ -23,6 +23,7 @@ import kotlinx.coroutines.channels.Channel
 import dev.companionremote.protocol.companion.CompanionConnection
 import dev.companionremote.protocol.hap.HapCredentials
 import dev.companionremote.protocol.hap.PairSetup
+import dev.companionremote.protocol.hap.PairVerify
 import dev.companionremote.app.update.AppUpdater
 import dev.companionremote.app.update.UpdateInfo
 import dev.companionremote.protocol.transport.SocketTransport
@@ -43,6 +44,9 @@ sealed interface Screen {
 }
 
 enum class ConnectionState { Connecting, Connected, Disconnected }
+
+/** Per-device pairing check triggered by the refresh button in Settings. */
+enum class DeviceVerify { Idle, Checking, Ok, Failed }
 
 /** In-app update lifecycle (GitHub Releases). */
 sealed interface UpdateState {
@@ -109,6 +113,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Paired device names, shown in Settings for management. */
     val pairedDevices = MutableStateFlow<List<String>>(emptyList())
+
+    /** Name of the Apple TV currently being controlled (for "in use"). */
+    val activeDeviceName = MutableStateFlow<String?>(null)
+
+    /** Per-device pairing-check state, keyed by device name. */
+    val deviceVerify = MutableStateFlow<Map<String, DeviceVerify>>(emptyMap())
 
     // Current strings, used for error messages produced in the ViewModel.
     private var strings: AppStrings = EnglishStrings
@@ -268,8 +278,45 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         settingsReturnTo = screen.value
         viewModelScope.launch {
             pairedDevices.value = credentialsRepository.pairedDeviceNames().sorted()
+            deviceVerify.value = emptyMap()
             screen.value = Screen.Settings
         }
+    }
+
+    /** Re-check that a paired device is reachable and its pairing still valid. */
+    fun verifyDevice(name: String) {
+        // The device we're actively controlling is trivially verified.
+        if (name == activeDeviceName.value && connectionState.value == ConnectionState.Connected) {
+            setVerify(name, DeviceVerify.Ok)
+            return
+        }
+        viewModelScope.launch {
+            setVerify(name, DeviceVerify.Checking)
+            val stored = credentialsRepository.load(name)
+            if (stored == null) {
+                setVerify(name, DeviceVerify.Failed)
+                return@launch
+            }
+            val creds = HapCredentials.parse(stored)
+            val target = discovery.resolveByName(name)
+            if (target == null) {
+                setVerify(name, DeviceVerify.Failed)
+                return@launch
+            }
+            val ok = runCatching {
+                val transport = SocketTransport.connect(target.host, target.port)
+                val conn = CompanionConnection(transport)
+                conn.start()
+                PairVerify(conn, creds).verify()
+                conn.close()
+                true
+            }.getOrDefault(false)
+            setVerify(name, if (ok) DeviceVerify.Ok else DeviceVerify.Failed)
+        }
+    }
+
+    private fun setVerify(name: String, state: DeviceVerify) {
+        deviceVerify.value = deviceVerify.value + (name to state)
     }
 
     fun closeSettings() {
@@ -377,6 +424,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // Remote / connection lifecycle
 
     private fun openRemote(device: DiscoveredAtv, credentials: HapCredentials) {
+        activeDeviceName.value = device.name
         screen.value = Screen.Remote(device)
         connect(device, credentials)
     }
@@ -435,6 +483,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val current = client
         client = null
         connectionState.value = ConnectionState.Disconnected
+        activeDeviceName.value = null
         viewModelScope.launch { runCatching { current?.disconnect() } }
         screen.value = Screen.DeviceList
     }

@@ -9,7 +9,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -35,21 +34,25 @@ data class GlassPalette(
 )
 
 private val MidnightDarkGlass = GlassPalette(
-    fill = Color.White.copy(alpha = 0.06f),
-    highlight = Color.White.copy(alpha = 0.10f),
-    border = Color.White.copy(alpha = 0.14f),
+    fill = Color.White.copy(alpha = 0.075f),
+    highlight = Color.White.copy(alpha = 0.12f),
+    border = Color.White.copy(alpha = 0.16f),
     dark = true,
 )
 
 /** Provided so leaf composables can pick up the current glass styling. */
 val LocalGlass = staticCompositionLocalOf { MidnightDarkGlass }
 
-/** Translucent glass background + sheen + hairline border, clipped to [shape]. */
+/**
+ * Translucent glass background + top sheen + hairline border, clipped to
+ * [shape]. Deliberately draws **no** elevation shadow: Android's outline
+ * shadow renders circular shapes as octagons on some devices (e.g. Samsung
+ * One UI). Depth comes from the sheen gradient and the border instead.
+ */
 @Composable
 fun Modifier.glass(shape: Shape): Modifier {
     val g = LocalGlass.current
     return this
-        .then(if (g.dark) Modifier else Modifier.shadow(5.dp, shape, clip = false))
         .clip(shape)
         .background(g.fill, shape)
         .background(Brush.verticalGradient(listOf(g.highlight, Color.Transparent)), shape)
@@ -168,10 +171,12 @@ fun skinAccentPreview(skin: AppSkin): Color = accent(skin, dark = true).primary
 fun skinGlass(dark: Boolean): GlassPalette = if (dark) {
     MidnightDarkGlass
 } else {
+    // Frosted white tiles that stay visible over the light gradient, defined
+    // by a cool hairline border (no shadow — see [glass]).
     GlassPalette(
-        fill = Color.White.copy(alpha = 0.62f),
+        fill = Color.White.copy(alpha = 0.82f),
         highlight = Color.White.copy(alpha = 0.55f),
-        border = Color.White.copy(alpha = 0.75f),
+        border = Color(0xFF3A4A66).copy(alpha = 0.16f),
         dark = false,
     )
 }
