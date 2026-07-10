@@ -29,6 +29,7 @@ import dev.companionremote.app.ui.DeviceListScreen
 import dev.companionremote.app.ui.PairingScreen
 import dev.companionremote.app.ui.RemoteScreen
 import dev.companionremote.app.ui.SettingsScreen
+import dev.companionremote.app.ui.UpdateDialog
 
 class MainActivity : ComponentActivity() {
 
@@ -52,6 +53,13 @@ class MainActivity : ComponentActivity() {
                             is Screen.Remote -> RemoteScreen(viewModel, current.device)
                         }
                     }
+                    val updateState by viewModel.updateState.collectAsState()
+                    UpdateDialog(
+                        state = updateState,
+                        onDownload = viewModel::downloadUpdate,
+                        onInstall = viewModel::installUpdate,
+                        onDismiss = viewModel::dismissUpdate,
+                    )
                 }
             }
         }

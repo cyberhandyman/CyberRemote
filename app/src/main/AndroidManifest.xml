@@ -12,6 +12,11 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Button-press vibration feedback (normal permission, auto-granted). -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- In-app updates: install the APK downloaded from GitHub Releases. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- Voice input is optional, so don't gate installation on having a mic. -->
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
     <!-- Lets us resolve the system speech-recognition service on Android 11+. -->
     <queries>
@@ -36,5 +41,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Shares the downloaded update APK with the system installer. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

@@ -23,11 +23,15 @@ import kotlinx.coroutines.channels.Channel
 import dev.companionremote.protocol.companion.CompanionConnection
 import dev.companionremote.protocol.hap.HapCredentials
 import dev.companionremote.protocol.hap.PairSetup
+import dev.companionremote.app.update.AppUpdater
+import dev.companionremote.app.update.UpdateInfo
 import dev.companionremote.protocol.transport.SocketTransport
+import java.io.File
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /** Which screen is showing. */
@@ -39,6 +43,17 @@ sealed interface Screen {
 }
 
 enum class ConnectionState { Connecting, Connected, Disconnected }
+
+/** In-app update lifecycle (GitHub Releases). */
+sealed interface UpdateState {
+    data object Idle : UpdateState
+    data class Checking(val manual: Boolean) : UpdateState
+    data object UpToDate : UpdateState
+    data class Available(val info: UpdateInfo) : UpdateState
+    data class Downloading(val info: UpdateInfo, val progress: Float) : UpdateState
+    data class Ready(val info: UpdateInfo, val file: File) : UpdateState
+    data class Failed(val message: String?) : UpdateState
+}
 
 data class PairingUi(
     val awaitingPin: Boolean = false,
@@ -82,6 +97,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Whether the first-run remote tutorial has already been shown. */
     val introSeen = MutableStateFlow(false)
+
+    /** In-app update settings + state. */
+    val autoCheckUpdates = MutableStateFlow(true)
+    val autoDownloadUpdates = MutableStateFlow(false)
+    val updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
+    private var updateJob: Job? = null
 
     // Where to return when leaving Settings (device list or the remote).
     private var settingsReturnTo: Screen = Screen.DeviceList
@@ -141,6 +162,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             settingsRepository.introSeen.collect { introSeen.value = it }
         }
+        viewModelScope.launch {
+            settingsRepository.autoCheckUpdates.collect { autoCheckUpdates.value = it }
+        }
+        viewModelScope.launch {
+            settingsRepository.autoDownloadUpdates.collect { autoDownloadUpdates.value = it }
+        }
+        // One-shot update check on launch, if enabled.
+        viewModelScope.launch {
+            if (settingsRepository.autoCheckUpdates.first()) checkForUpdates(manual = false)
+        }
         startScan()
     }
 
@@ -172,6 +203,65 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun markIntroSeen() {
         viewModelScope.launch { settingsRepository.setIntroSeen(true) }
+    }
+
+    fun setAutoCheckUpdates(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setAutoCheckUpdates(enabled) }
+    }
+
+    fun setAutoDownloadUpdates(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setAutoDownloadUpdates(enabled) }
+    }
+
+    // In-app updates (GitHub Releases)
+
+    fun checkForUpdates(manual: Boolean) {
+        if (updateState.value is UpdateState.Downloading) return
+        updateJob?.cancel()
+        updateJob = viewModelScope.launch {
+            updateState.value = UpdateState.Checking(manual)
+            val info = runCatching { AppUpdater.check(BuildConfig.VERSION_NAME) }.getOrNull()
+            when {
+                info == null -> updateState.value = if (manual) UpdateState.UpToDate else UpdateState.Idle
+                autoDownloadUpdates.value -> startDownload(info)
+                else -> updateState.value = UpdateState.Available(info)
+            }
+        }
+    }
+
+    fun downloadUpdate() {
+        val info = when (val st = updateState.value) {
+            is UpdateState.Available -> st.info
+            is UpdateState.Failed -> return
+            else -> return
+        }
+        startDownload(info)
+    }
+
+    private fun startDownload(info: UpdateInfo) {
+        updateJob?.cancel()
+        updateJob = viewModelScope.launch {
+            updateState.value = UpdateState.Downloading(info, 0f)
+            runCatching {
+                AppUpdater.download(getApplication(), info) { p ->
+                    updateState.value = UpdateState.Downloading(info, p)
+                }
+            }.onSuccess { file ->
+                updateState.value = UpdateState.Ready(info, file)
+            }.onFailure {
+                updateState.value = UpdateState.Failed(it.message)
+            }
+        }
+    }
+
+    fun installUpdate() {
+        val st = updateState.value as? UpdateState.Ready ?: return
+        runCatching { AppUpdater.install(getApplication(), st.file) }
+    }
+
+    fun dismissUpdate() {
+        updateJob?.cancel()
+        updateState.value = UpdateState.Idle
     }
 
     fun openSettings() {
@@ -296,22 +386,32 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         reconnectJob = viewModelScope.launch {
             connectionState.value = ConnectionState.Connecting
             connectionError.value = null
-            // The Companion port changes across reboots: re-resolve first,
-            // falling back to the last known host/port (manual entry).
-            val target = discovery.resolveByName(device.name) ?: device
-            try {
-                val transport = SocketTransport.connect(target.host, target.port)
-                val newClient = CompanionClient(CompanionConnection(transport), credentials)
-                newClient.connect()
-                client = newClient
-                connectionState.value = ConnectionState.Connected
-                observeKeyboard(newClient)
-                consumeTouchEvents(newClient)
-            } catch (e: Exception) {
-                client = null
-                connectionState.value = ConnectionState.Disconnected
-                connectionError.value = friendlyError(e)
+            // Transient "ws error" right after opening the app is common (the
+            // ATV's port rotates, Wi-Fi just woke, etc). Retry a few times,
+            // half a second apart, staying in the Connecting state; only
+            // surface the error + manual Reconnect after all attempts fail.
+            var lastError: Exception? = null
+            repeat(RECONNECT_ATTEMPTS) { attempt ->
+                if (attempt > 0) delay(RECONNECT_DELAY_MS)
+                // The Companion port changes across reboots: re-resolve first,
+                // falling back to the last known host/port (manual entry).
+                val target = discovery.resolveByName(device.name) ?: device
+                try {
+                    val transport = SocketTransport.connect(target.host, target.port)
+                    val newClient = CompanionClient(CompanionConnection(transport), credentials)
+                    newClient.connect()
+                    client = newClient
+                    connectionState.value = ConnectionState.Connected
+                    observeKeyboard(newClient)
+                    consumeTouchEvents(newClient)
+                    return@launch
+                } catch (e: Exception) {
+                    client = null
+                    lastError = e
+                }
             }
+            connectionState.value = ConnectionState.Disconnected
+            connectionError.value = friendlyError(lastError ?: java.io.IOException("connect failed"))
         }
     }
 
@@ -457,5 +557,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         pairingConnection?.close()
         client?.close()
+    }
+
+    private companion object {
+        const val RECONNECT_ATTEMPTS = 3
+        const val RECONNECT_DELAY_MS = 500L
     }
 }

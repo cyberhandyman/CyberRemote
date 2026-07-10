@@ -71,6 +71,8 @@ fun SettingsScreen(viewModel: AppViewModel) {
     val fetchIcons by viewModel.fetchAppIcons.collectAsState()
     val hapticEnabled by viewModel.hapticEnabled.collectAsState()
     val hapticStrength by viewModel.hapticStrength.collectAsState()
+    val autoCheckUpdates by viewModel.autoCheckUpdates.collectAsState()
+    val autoDownloadUpdates by viewModel.autoDownloadUpdates.collectAsState()
     val paired by viewModel.pairedDevices.collectAsState()
     val clipboard = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -245,6 +247,37 @@ fun SettingsScreen(viewModel: AppViewModel) {
                 }
             }
 
+            // Updates
+            SectionTitle(s.updates)
+            SettingsCard {
+                ToggleRow(
+                    title = s.autoCheckUpdates,
+                    desc = s.autoCheckUpdatesDesc,
+                    checked = autoCheckUpdates,
+                    onCheckedChange = { viewModel.setAutoCheckUpdates(it) },
+                )
+                ToggleRow(
+                    title = s.autoDownloadUpdates,
+                    desc = s.autoDownloadUpdatesDesc,
+                    checked = autoDownloadUpdates,
+                    onCheckedChange = { viewModel.setAutoDownloadUpdates(it) },
+                )
+                Row(
+                    Modifier.fillMaxWidth().clickable { viewModel.checkForUpdates(manual = true) }
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(s.checkNow, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                        Text(
+                            s.currentVersion.format(dev.companionremote.app.BuildConfig.VERSION_NAME),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
             // About
             SectionTitle(s.about)
             Text(
@@ -300,6 +333,24 @@ private fun OptionRow(label: String, selected: Boolean, onSelect: () -> Unit) {
     ) {
         RadioButton(selected = selected, onClick = onSelect)
         Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 8.dp))
+    }
+}
+
+@Composable
+private fun ToggleRow(title: String, desc: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+            Text(
+                desc,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 

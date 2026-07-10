@@ -31,6 +31,8 @@ class SettingsRepository(context: Context) {
     private val hapticEnabledKey = booleanPreferencesKey("haptic_enabled")
     private val hapticStrengthKey = stringPreferencesKey("haptic_strength")
     private val introSeenKey = booleanPreferencesKey("intro_seen")
+    private val autoCheckUpdatesKey = booleanPreferencesKey("auto_check_updates")
+    private val autoDownloadUpdatesKey = booleanPreferencesKey("auto_download_updates")
 
     val language: Flow<AppLanguage> = appContext.settingsDataStore.data.map { prefs ->
         when (prefs[languageKey]) {
@@ -78,6 +80,16 @@ class SettingsRepository(context: Context) {
     /** Whether the first-run remote tutorial has been shown. */
     val introSeen: Flow<Boolean> = appContext.settingsDataStore.data.map { prefs ->
         prefs[introSeenKey] ?: false
+    }
+
+    /** Check GitHub for a newer APK on launch (default on). */
+    val autoCheckUpdates: Flow<Boolean> = appContext.settingsDataStore.data.map { prefs ->
+        prefs[autoCheckUpdatesKey] ?: true
+    }
+
+    /** Download an available update automatically (default off — save data). */
+    val autoDownloadUpdates: Flow<Boolean> = appContext.settingsDataStore.data.map { prefs ->
+        prefs[autoDownloadUpdatesKey] ?: false
     }
 
     suspend fun setLanguage(language: AppLanguage) {
@@ -131,5 +143,13 @@ class SettingsRepository(context: Context) {
 
     suspend fun setIntroSeen(seen: Boolean) {
         appContext.settingsDataStore.edit { prefs -> prefs[introSeenKey] = seen }
+    }
+
+    suspend fun setAutoCheckUpdates(enabled: Boolean) {
+        appContext.settingsDataStore.edit { prefs -> prefs[autoCheckUpdatesKey] = enabled }
+    }
+
+    suspend fun setAutoDownloadUpdates(enabled: Boolean) {
+        appContext.settingsDataStore.edit { prefs -> prefs[autoDownloadUpdatesKey] = enabled }
     }
 }
