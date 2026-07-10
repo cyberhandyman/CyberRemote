@@ -1,11 +1,13 @@
 package dev.companionremote.app.ui
 
+import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,7 +51,6 @@ import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PhotoLibrary
-import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Podcasts
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Remove
@@ -90,19 +91,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.companionremote.app.AppViewModel
 import dev.companionremote.app.ConnectionState
+import dev.companionremote.app.R
 import dev.companionremote.app.discovery.DiscoveredAtv
 import dev.companionremote.app.i18n.LocalAppStrings
+import dev.companionremote.app.theme.glass
 import dev.companionremote.protocol.client.HidCommand
 import dev.companionremote.protocol.client.KeyboardFocusState
 
@@ -153,10 +157,8 @@ private fun systemAppIcon(bundleId: String): Pair<ImageVector, Color>? = when (b
 @Composable
 private fun AppIcon(bundleId: String, name: String, fetchIcons: Boolean) {
     val shape = RoundedCornerShape(12.dp)
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
 
-    // Apple's built-in apps get a semantic icon; fetching is pointless (they
-    // aren't in the catalog).
     val system = systemAppIcon(bundleId)
     if (system != null) {
         Box(
@@ -209,19 +211,44 @@ fun RemoteScreen(viewModel: AppViewModel, device: DiscoveredAtv) {
     val connectionError by viewModel.connectionError.collectAsState()
     val focusState by viewModel.keyboardFocus.collectAsState()
     val keyboardText by viewModel.keyboardText.collectAsState()
+    val hapticEnabled by viewModel.hapticEnabled.collectAsState()
+    val hapticStrength by viewModel.hapticStrength.collectAsState()
+    val introSeen by viewModel.introSeen.collectAsState()
     val s = LocalAppStrings.current
-    val haptics = LocalHapticFeedback.current
+    val context = LocalContext.current
     val softKeyboard = LocalSoftwareKeyboardController.current
     val imeVisible = WindowInsets.isImeVisible
     var powerMenu by remember { mutableStateOf(false) }
     var keyboardOpen by remember { mutableStateOf(false) }
     var tab by remember { mutableIntStateOf(0) }
+    var introDismissed by remember { mutableStateOf(false) }
 
-    fun tap() = haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-    fun press(command: HidCommand) { tap(); viewModel.pressButton(command) }
-    fun hold(command: HidCommand) { tap(); viewModel.holdButton(command) }
-    fun ok() { tap(); viewModel.touchTap() }
-    fun okLong() { tap(); viewModel.holdButton(HidCommand.Select) }
+    val buzz = rememberHaptic(hapticEnabled, hapticStrength)
+    fun toast(msg: String) = Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+
+    val startVoice = rememberVoiceInput(
+        onResult = { viewModel.dictateText(it) },
+        onError = { err ->
+            toast(
+                when (err) {
+                    VoiceError.PermissionDenied -> s.voicePermissionNeeded
+                    VoiceError.Unavailable -> s.voiceUnavailable
+                    VoiceError.Failed -> s.voiceUnavailable
+                },
+            )
+        },
+    )
+
+    fun press(command: HidCommand) { buzz(); viewModel.pressButton(command) }
+    fun hold(command: HidCommand) { buzz(); viewModel.holdButton(command) }
+    fun ok() { buzz(); viewModel.touchTap() }
+    fun okLong() { buzz(); viewModel.holdButton(HidCommand.Select) }
+    fun volStep(up: Boolean) { viewModel.pressButton(if (up) HidCommand.VolumeUp else HidCommand.VolumeDown) }
+    fun volTap(up: Boolean) { buzz(); volStep(up) }
+    fun onVoice() {
+        buzz()
+        if (focusState == KeyboardFocusState.Focused) startVoice() else toast(s.voiceNeedFocus)
+    }
 
     LaunchedEffect(focusState) {
         when (focusState) {
@@ -233,12 +260,10 @@ fun RemoteScreen(viewModel: AppViewModel, device: DiscoveredAtv) {
     LaunchedEffect(tab) { if (tab == 2) viewModel.loadApps() }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         StatusDot(connectionState)
@@ -302,22 +327,24 @@ fun RemoteScreen(viewModel: AppViewModel, device: DiscoveredAtv) {
                         softKeyboard?.hide()
                     },
                 )
-                // Only shrink to the compact layout when the soft keyboard is
-                // actually up (stealing screen space). If it's dismissed, keep
-                // the full remote so it doesn't look cramped.
                 if (imeVisible) {
-                    CompactRemote(press = ::press, hold = ::hold, ok = ::ok, okLong = ::okLong)
+                    CompactRemote(::press, ::hold, ::ok, ::okLong, ::onVoice, ::volTap)
                 } else {
-                    DpadPane(press = ::press, hold = ::hold, ok = ::ok, okLong = ::okLong, openKeyboard = { softKeyboard?.show() })
+                    DpadPane(::press, ::hold, ::ok, ::okLong, ::onVoice, ::volStep, ::volTap) { softKeyboard?.show() }
                 }
             } else {
                 when (tab) {
-                    0 -> DpadPane(press = ::press, hold = ::hold, ok = ::ok, okLong = ::okLong) { keyboardOpen = true }
-                    1 -> TouchpadPane(viewModel, ::press, ::hold, ok = ::ok, okLong = ::okLong) { keyboardOpen = true }
+                    0 -> DpadPane(::press, ::hold, ::ok, ::okLong, ::onVoice, ::volStep, ::volTap) { keyboardOpen = true }
+                    1 -> TouchpadPane(viewModel, ::press, ::hold, ::ok, ::okLong, ::onVoice, ::volTap) { keyboardOpen = true }
                     2 -> AppsPane(viewModel)
                 }
             }
         }
+    }
+
+    // First-run tutorial, shown once right after the first pairing.
+    if (!introSeen && !introDismissed) {
+        IntroOverlay(onDone = { introDismissed = true; viewModel.markIntroSeen() })
     }
 }
 
@@ -360,7 +387,7 @@ private fun SegmentedTabs(selected: Int, onSelect: (Int) -> Unit) {
     val titles = listOf(s.tabRemote to Icons.Default.Gamepad, s.tabTouch to Icons.Default.TouchApp, s.tabApps to Icons.Default.Apps)
     TabRow(
         selectedTabIndex = selected,
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         indicator = { positions ->
             TabRowDefaults.PrimaryIndicator(
                 Modifier.tabIndicatorOffset(positions[selected]),
@@ -446,13 +473,16 @@ private fun KeyboardBar(
     }
 }
 
-/** Full remote pane: big D-pad dial + a row of round action keys. */
+/** Full remote pane: big D-pad dial, a row of action keys, volume slider. */
 @Composable
 private fun DpadPane(
     press: (HidCommand) -> Unit,
     hold: (HidCommand) -> Unit,
     ok: () -> Unit,
     okLong: () -> Unit,
+    onVoice: () -> Unit,
+    volStep: (Boolean) -> Unit,
+    volTap: (Boolean) -> Unit,
     openKeyboard: () -> Unit,
 ) {
     Column(
@@ -460,24 +490,26 @@ private fun DpadPane(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         DpadDial(press = press, ok = ok, okLong = okLong)
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(28.dp))
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            RoundKey(Icons.AutoMirrored.Filled.ArrowBack, "Back", onClick = { press(HidCommand.Menu) })
+            RoundKey(icon = Icons.AutoMirrored.Filled.ArrowBack, label = "Back", size = 56.dp, onClick = { press(HidCommand.Menu) })
             RoundKey(
-                Icons.Rounded.Home,
-                "Home (hold: Control Center)",
+                icon = Icons.Rounded.Home,
+                label = "Home (hold: Control Center)",
+                size = 56.dp,
                 onClick = { press(HidCommand.Home) },
                 onLongClick = { hold(HidCommand.Home) },
             )
-            RoundKey(Icons.Rounded.PlayArrow, "Play/Pause", onClick = { press(HidCommand.PlayPause) })
-            RoundKey(Icons.Rounded.Keyboard, "Keyboard", onClick = { openKeyboard() })
+            RoundKey(icon = Icons.Rounded.Mic, label = "Voice", size = 56.dp, accent = true, onClick = onVoice)
+            RoundKey(painter = painterResource(R.drawable.ic_play_pause), label = "Play/Pause", size = 56.dp, onClick = { press(HidCommand.PlayPause) })
+            RoundKey(icon = Icons.Rounded.Keyboard, label = "Keyboard", size = 56.dp, onClick = openKeyboard)
         }
-        Spacer(Modifier.height(20.dp))
-        VolumePill(press)
+        Spacer(Modifier.height(24.dp))
+        VolumeSlider(onStep = volStep, onTap = volTap)
     }
 }
 
@@ -489,29 +521,26 @@ private fun DpadDial(press: (HidCommand) -> Unit, ok: () -> Unit, okLong: () -> 
         Modifier
             .fillMaxWidth(0.86f)
             .aspectRatio(1f)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape),
+            .glass(CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         DialArrow(Icons.Rounded.KeyboardArrowUp, "Up", Modifier.align(Alignment.TopCenter)) { press(HidCommand.Up) }
         DialArrow(Icons.Rounded.KeyboardArrowDown, "Down", Modifier.align(Alignment.BottomCenter)) { press(HidCommand.Down) }
         DialArrow(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "Left", Modifier.align(Alignment.CenterStart)) { press(HidCommand.Left) }
         DialArrow(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "Right", Modifier.align(Alignment.CenterEnd)) { press(HidCommand.Right) }
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primaryContainer,
-            modifier = Modifier.size(96.dp).clip(CircleShape)
+        Box(
+            Modifier.size(96.dp).clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primaryContainer)
+                .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape)
                 .combinedClickable(onClick = ok, onLongClick = okLong),
+            contentAlignment = Alignment.Center,
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(
-                    "OK",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
-            }
+            Text(
+                "OK",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
         }
     }
 }
@@ -523,24 +552,42 @@ private fun DialArrow(icon: ImageVector, label: String, modifier: Modifier = Mod
     }
 }
 
+/**
+ * Vertical volume control: tap + / − to step, or drag up/down to scrub. Drag
+ * fires one volume step every ~24 dp so a swipe changes several notches.
+ */
 @Composable
-private fun VolumePill(press: (HidCommand) -> Unit) {
-    Surface(
-        shape = RoundedCornerShape(28.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+private fun VolumeSlider(onStep: (Boolean) -> Unit, onTap: (Boolean) -> Unit) {
+    Column(
+        Modifier
+            .width(72.dp)
+            .height(184.dp)
+            .glass(RoundedCornerShape(36.dp))
+            .pointerInput(Unit) {
+                var acc = 0f
+                val step = 24.dp.toPx()
+                detectVerticalDragGestures(
+                    onDragEnd = { acc = 0f },
+                    onDragCancel = { acc = 0f },
+                ) { change, dy ->
+                    change.consume()
+                    acc += dy
+                    while (acc <= -step) { onStep(true); acc += step }   // up = louder
+                    while (acc >= step) { onStep(false); acc -= step }   // down = softer
+                }
+            },
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { press(HidCommand.VolumeDown) }, modifier = Modifier.size(56.dp)) {
-                Icon(Icons.Rounded.Remove, contentDescription = "Volume down")
-            }
-            Text(
-                "VOL",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            IconButton(onClick = { press(HidCommand.VolumeUp) }, modifier = Modifier.size(56.dp)) {
-                Icon(Icons.Rounded.Add, contentDescription = "Volume up")
-            }
+        IconButton(onClick = { onTap(true) }, modifier = Modifier.weight(1f).fillMaxWidth()) {
+            Icon(Icons.Rounded.Add, contentDescription = "Volume up", Modifier.size(26.dp))
+        }
+        Text(
+            "VOL",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        IconButton(onClick = { onTap(false) }, modifier = Modifier.weight(1f).fillMaxWidth()) {
+            Icon(Icons.Rounded.Remove, contentDescription = "Volume down", Modifier.size(26.dp))
         }
     }
 }
@@ -548,11 +595,7 @@ private fun VolumePill(press: (HidCommand) -> Unit) {
 /**
  * Compact but complete remote shown above the soft keyboard. Laid out
  * **horizontally** — function keys flank the arrow cross — so its height is
- * just the cross (3 rows) and nothing gets pushed off-screen by the keyboard.
- *
- *   back              ↑              vol+
- *   home        ←   [OK]   →         vol-
- *   play              ↓              back
+ * just the cross and nothing gets pushed off-screen by the keyboard.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -561,24 +604,26 @@ private fun CompactRemote(
     hold: (HidCommand) -> Unit,
     ok: () -> Unit,
     okLong: () -> Unit,
+    onVoice: () -> Unit,
+    volTap: (Boolean) -> Unit,
 ) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Left column: navigation functions
+        // Left column: navigation + media
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            MiniKey(Icons.AutoMirrored.Filled.ArrowBack, "Back") { press(HidCommand.Menu) }
+            MiniKey(icon = Icons.AutoMirrored.Filled.ArrowBack, label = "Back") { press(HidCommand.Menu) }
             MiniKey(
-                Icons.Rounded.Home,
-                "Home (hold: Control Center)",
+                icon = Icons.Rounded.Home,
+                label = "Home (hold: Control Center)",
                 onLongClick = { hold(HidCommand.Home) },
             ) { press(HidCommand.Home) }
-            MiniKey(Icons.Rounded.PlayArrow, "Play/Pause") { press(HidCommand.PlayPause) }
+            MiniKey(painter = painterResource(R.drawable.ic_play_pause), label = "Play/Pause") { press(HidCommand.PlayPause) }
         }
 
         // Centre: aligned arrow cross with OK
@@ -586,39 +631,39 @@ private fun CompactRemote(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            MiniKey(Icons.Rounded.KeyboardArrowUp, "Up") { press(HidCommand.Up) }
+            MiniKey(icon = Icons.Rounded.KeyboardArrowUp, label = "Up") { press(HidCommand.Up) }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                MiniKey(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "Left") { press(HidCommand.Left) }
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.size(56.dp).clip(CircleShape)
+                MiniKey(icon = Icons.AutoMirrored.Rounded.KeyboardArrowLeft, label = "Left") { press(HidCommand.Left) }
+                Box(
+                    Modifier.size(56.dp).clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape)
                         .combinedClickable(onClick = ok, onLongClick = okLong),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            "OK",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                    }
+                    Text(
+                        "OK",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
                 }
-                MiniKey(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "Right") { press(HidCommand.Right) }
+                MiniKey(icon = Icons.AutoMirrored.Rounded.KeyboardArrowRight, label = "Right") { press(HidCommand.Right) }
             }
-            MiniKey(Icons.Rounded.KeyboardArrowDown, "Down") { press(HidCommand.Down) }
+            MiniKey(icon = Icons.Rounded.KeyboardArrowDown, label = "Down") { press(HidCommand.Down) }
         }
 
-        // Right column: volume
+        // Right column: voice + volume
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            MiniKey(Icons.Rounded.Add, "Volume up") { press(HidCommand.VolumeUp) }
-            MiniKey(Icons.Rounded.Remove, "Volume down") { press(HidCommand.VolumeDown) }
+            MiniKey(icon = Icons.Rounded.Mic, label = "Voice", accent = true) { onVoice() }
+            MiniKey(icon = Icons.Rounded.Add, label = "Volume up") { volTap(true) }
+            MiniKey(icon = Icons.Rounded.Remove, label = "Volume down") { volTap(false) }
         }
     }
 }
@@ -626,22 +671,20 @@ private fun CompactRemote(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MiniKey(
-    icon: ImageVector,
     label: String,
+    icon: ImageVector? = null,
+    painter: Painter? = null,
+    accent: Boolean = false,
     onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit,
 ) {
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = Modifier
-            .size(52.dp)
-            .clip(CircleShape)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+    val shape = CircleShape
+    Box(
+        Modifier.size(52.dp).glass(shape).combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        contentAlignment = Alignment.Center,
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = label, Modifier.size(24.dp))
-        }
+        val tint = if (accent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+        KeyGlyph(icon, painter, label, 24.dp, tint)
     }
 }
 
@@ -653,6 +696,8 @@ private fun TouchpadPane(
     hold: (HidCommand) -> Unit,
     ok: () -> Unit,
     okLong: () -> Unit,
+    onVoice: () -> Unit,
+    volTap: (Boolean) -> Unit,
     openKeyboard: () -> Unit,
 ) {
     val lastTouch = remember { mutableStateOf(500L to 500L) }
@@ -662,9 +707,7 @@ private fun TouchpadPane(
             Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .clip(RoundedCornerShape(28.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(28.dp))
+                .glass(RoundedCornerShape(28.dp))
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = { viewModel.touchTap() }, onLongPress = { viewModel.holdButton(HidCommand.Select) })
                 }
@@ -695,7 +738,6 @@ private fun TouchpadPane(
                 },
             contentAlignment = Alignment.Center,
         ) {
-            // Faint directional hints around the edges.
             Icon(Icons.Rounded.KeyboardArrowUp, null, Modifier.align(Alignment.TopCenter).padding(8.dp).size(28.dp), tint = hintColor)
             Icon(Icons.Rounded.KeyboardArrowDown, null, Modifier.align(Alignment.BottomCenter).padding(8.dp).size(28.dp), tint = hintColor)
             Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, null, Modifier.align(Alignment.CenterStart).padding(8.dp).size(28.dp), tint = hintColor)
@@ -713,18 +755,19 @@ private fun TouchpadPane(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            RoundKey(Icons.AutoMirrored.Filled.ArrowBack, "Back", size = 50.dp, onClick = { press(HidCommand.Menu) })
+            RoundKey(icon = Icons.AutoMirrored.Filled.ArrowBack, label = "Back", size = 48.dp, onClick = { press(HidCommand.Menu) })
             RoundKey(
-                Icons.Rounded.Home,
-                "Home (hold: Control Center)",
-                size = 50.dp,
+                icon = Icons.Rounded.Home,
+                label = "Home (hold: Control Center)",
+                size = 48.dp,
                 onClick = { press(HidCommand.Home) },
                 onLongClick = { hold(HidCommand.Home) },
             )
-            RoundKey(Icons.Rounded.PlayArrow, "Play/Pause", size = 50.dp, onClick = { press(HidCommand.PlayPause) })
-            RoundKey(Icons.Rounded.Keyboard, "Keyboard", size = 50.dp, onClick = openKeyboard)
-            RoundKey(Icons.Rounded.Remove, "Volume down", size = 50.dp, onClick = { press(HidCommand.VolumeDown) })
-            RoundKey(Icons.Rounded.Add, "Volume up", size = 50.dp, onClick = { press(HidCommand.VolumeUp) })
+            RoundKey(icon = Icons.Rounded.Mic, label = "Voice", size = 48.dp, accent = true, onClick = onVoice)
+            RoundKey(painter = painterResource(R.drawable.ic_play_pause), label = "Play/Pause", size = 48.dp, onClick = { press(HidCommand.PlayPause) })
+            RoundKey(icon = Icons.Rounded.Keyboard, label = "Keyboard", size = 48.dp, onClick = openKeyboard)
+            RoundKey(icon = Icons.Rounded.Remove, label = "Volume down", size = 48.dp, onClick = { volTap(false) })
+            RoundKey(icon = Icons.Rounded.Add, label = "Volume up", size = 48.dp, onClick = { volTap(true) })
         }
     }
 }
@@ -736,7 +779,6 @@ private fun AppsPane(viewModel: AppViewModel) {
     val error by viewModel.appsError.collectAsState()
     val fetchIcons by viewModel.fetchAppIcons.collectAsState()
     Column(Modifier.fillMaxSize()) {
-        // Quick toggle for real icons (also in Settings).
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -796,26 +838,31 @@ private fun AppsGrid(
     }
 }
 
-/** A round tonal key; supports an optional long-press. */
+/** A round glass key; supports an optional long-press and an accent tint. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RoundKey(
-    icon: ImageVector,
     label: String,
+    icon: ImageVector? = null,
+    painter: Painter? = null,
     size: androidx.compose.ui.unit.Dp = 60.dp,
+    accent: Boolean = false,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
 ) {
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = Modifier
-            .size(size)
-            .clip(CircleShape)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+    val shape = CircleShape
+    Box(
+        Modifier.size(size).glass(shape).combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        contentAlignment = Alignment.Center,
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = label, Modifier.size(size * 0.42f))
-        }
+        val tint = if (accent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+        KeyGlyph(icon, painter, label, size * 0.42f, tint)
     }
+}
+
+/** Renders either a vector [icon] or a drawable [painter] as a key glyph. */
+@Composable
+private fun KeyGlyph(icon: ImageVector?, painter: Painter?, label: String, glyphSize: androidx.compose.ui.unit.Dp, tint: Color) {
+    val p = painter ?: icon?.let { rememberVectorPainter(it) } ?: return
+    Icon(p, contentDescription = label, Modifier.size(glyphSize), tint = tint)
 }

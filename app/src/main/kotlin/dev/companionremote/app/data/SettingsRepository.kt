@@ -14,13 +14,23 @@ private val Context.settingsDataStore by preferencesDataStore(name = "cyberremot
 /** Light/dark theme preference. */
 enum class ThemeMode { System, Light, Dark }
 
-/** Persists app-level preferences (language, theme, app-icon fetching). */
+/** Visual skin (accent + glass palette). Orthogonal to light/dark. */
+enum class AppSkin { Midnight, Graphite, Aurora, Sunset }
+
+/** Haptic (vibration) strength for button feedback. */
+enum class HapticStrength { Light, Medium, Strong }
+
+/** Persists app-level preferences (language, theme, skin, haptics, …). */
 class SettingsRepository(context: Context) {
 
     private val appContext = context.applicationContext
     private val languageKey = stringPreferencesKey("language")
     private val themeKey = stringPreferencesKey("theme")
+    private val skinKey = stringPreferencesKey("skin")
     private val fetchIconsKey = booleanPreferencesKey("fetch_app_icons")
+    private val hapticEnabledKey = booleanPreferencesKey("haptic_enabled")
+    private val hapticStrengthKey = stringPreferencesKey("haptic_strength")
+    private val introSeenKey = booleanPreferencesKey("intro_seen")
 
     val language: Flow<AppLanguage> = appContext.settingsDataStore.data.map { prefs ->
         when (prefs[languageKey]) {
@@ -38,9 +48,36 @@ class SettingsRepository(context: Context) {
         }
     }
 
+    val skin: Flow<AppSkin> = appContext.settingsDataStore.data.map { prefs ->
+        when (prefs[skinKey]) {
+            "graphite" -> AppSkin.Graphite
+            "aurora" -> AppSkin.Aurora
+            "sunset" -> AppSkin.Sunset
+            else -> AppSkin.Midnight
+        }
+    }
+
     /** Whether to fetch real app icons over the network (default off). */
     val fetchAppIcons: Flow<Boolean> = appContext.settingsDataStore.data.map { prefs ->
         prefs[fetchIconsKey] ?: false
+    }
+
+    /** Vibrate on button presses (default on). */
+    val hapticEnabled: Flow<Boolean> = appContext.settingsDataStore.data.map { prefs ->
+        prefs[hapticEnabledKey] ?: true
+    }
+
+    val hapticStrength: Flow<HapticStrength> = appContext.settingsDataStore.data.map { prefs ->
+        when (prefs[hapticStrengthKey]) {
+            "light" -> HapticStrength.Light
+            "strong" -> HapticStrength.Strong
+            else -> HapticStrength.Medium
+        }
+    }
+
+    /** Whether the first-run remote tutorial has been shown. */
+    val introSeen: Flow<Boolean> = appContext.settingsDataStore.data.map { prefs ->
+        prefs[introSeenKey] ?: false
     }
 
     suspend fun setLanguage(language: AppLanguage) {
@@ -63,7 +100,36 @@ class SettingsRepository(context: Context) {
         }
     }
 
+    suspend fun setSkin(skin: AppSkin) {
+        appContext.settingsDataStore.edit { prefs ->
+            prefs[skinKey] = when (skin) {
+                AppSkin.Midnight -> "midnight"
+                AppSkin.Graphite -> "graphite"
+                AppSkin.Aurora -> "aurora"
+                AppSkin.Sunset -> "sunset"
+            }
+        }
+    }
+
     suspend fun setFetchAppIcons(enabled: Boolean) {
         appContext.settingsDataStore.edit { prefs -> prefs[fetchIconsKey] = enabled }
+    }
+
+    suspend fun setHapticEnabled(enabled: Boolean) {
+        appContext.settingsDataStore.edit { prefs -> prefs[hapticEnabledKey] = enabled }
+    }
+
+    suspend fun setHapticStrength(strength: HapticStrength) {
+        appContext.settingsDataStore.edit { prefs ->
+            prefs[hapticStrengthKey] = when (strength) {
+                HapticStrength.Light -> "light"
+                HapticStrength.Medium -> "medium"
+                HapticStrength.Strong -> "strong"
+            }
+        }
+    }
+
+    suspend fun setIntroSeen(seen: Boolean) {
+        appContext.settingsDataStore.edit { prefs -> prefs[introSeenKey] = seen }
     }
 }

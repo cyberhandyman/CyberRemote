@@ -1,6 +1,7 @@
 package dev.companionremote.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
@@ -50,10 +52,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.companionremote.app.AppViewModel
 import dev.companionremote.app.R
+import dev.companionremote.app.data.AppSkin
+import dev.companionremote.app.data.HapticStrength
 import dev.companionremote.app.data.ThemeMode
 import dev.companionremote.app.i18n.AppLanguage
 import dev.companionremote.app.i18n.FEEDBACK_EMAIL
 import dev.companionremote.app.i18n.LocalAppStrings
+import dev.companionremote.app.theme.skinAccentPreview
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,18 +67,21 @@ fun SettingsScreen(viewModel: AppViewModel) {
     val s = LocalAppStrings.current
     val language by viewModel.language.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
+    val skin by viewModel.skin.collectAsState()
     val fetchIcons by viewModel.fetchAppIcons.collectAsState()
+    val hapticEnabled by viewModel.hapticEnabled.collectAsState()
+    val hapticStrength by viewModel.hapticStrength.collectAsState()
     val paired by viewModel.pairedDevices.collectAsState()
     val clipboard = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
                 title = { Text(s.settings, fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
                     IconButton(onClick = { viewModel.closeSettings() }) {
@@ -93,6 +101,50 @@ fun SettingsScreen(viewModel: AppViewModel) {
                 OptionRow(s.themeSystem, themeMode == ThemeMode.System) { viewModel.setThemeMode(ThemeMode.System) }
                 OptionRow(s.themeLight, themeMode == ThemeMode.Light) { viewModel.setThemeMode(ThemeMode.Light) }
                 OptionRow(s.themeDark, themeMode == ThemeMode.Dark) { viewModel.setThemeMode(ThemeMode.Dark) }
+            }
+
+            // Skin
+            SectionTitle(s.skin)
+            SettingsCard {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                ) {
+                    SkinSwatch(s.skinMidnight, AppSkin.Midnight, skin) { viewModel.setSkin(AppSkin.Midnight) }
+                    SkinSwatch(s.skinGraphite, AppSkin.Graphite, skin) { viewModel.setSkin(AppSkin.Graphite) }
+                    SkinSwatch(s.skinAurora, AppSkin.Aurora, skin) { viewModel.setSkin(AppSkin.Aurora) }
+                    SkinSwatch(s.skinSunset, AppSkin.Sunset, skin) { viewModel.setSkin(AppSkin.Sunset) }
+                }
+            }
+
+            // Button feedback (haptics)
+            SectionTitle(s.haptics)
+            SettingsCard {
+                Row(
+                    Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f).padding(end = 12.dp)) {
+                        Text(s.hapticVibrate, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                        Text(
+                            s.hapticVibrateDesc,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = hapticEnabled, onCheckedChange = { viewModel.setHapticEnabled(it) })
+                }
+                if (hapticEnabled) {
+                    Text(
+                        s.hapticStrength,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 16.dp, top = 4.dp),
+                    )
+                    OptionRow(s.hapticLight, hapticStrength == HapticStrength.Light) { viewModel.setHapticStrength(HapticStrength.Light) }
+                    OptionRow(s.hapticMedium, hapticStrength == HapticStrength.Medium) { viewModel.setHapticStrength(HapticStrength.Medium) }
+                    OptionRow(s.hapticStrong, hapticStrength == HapticStrength.Strong) { viewModel.setHapticStrength(HapticStrength.Strong) }
+                }
             }
 
             // Language
@@ -248,5 +300,34 @@ private fun OptionRow(label: String, selected: Boolean, onSelect: () -> Unit) {
     ) {
         RadioButton(selected = selected, onClick = onSelect)
         Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 8.dp))
+    }
+}
+
+@Composable
+private fun SkinSwatch(label: String, skin: AppSkin, current: AppSkin, onSelect: () -> Unit) {
+    val selected = skin == current
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable(onClick = onSelect).padding(4.dp),
+    ) {
+        Box(
+            Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(skinAccentPreview(skin))
+                .border(
+                    width = if (selected) 3.dp else 1.dp,
+                    color = if (selected) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.outlineVariant,
+                    shape = CircleShape,
+                ),
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+        )
     }
 }

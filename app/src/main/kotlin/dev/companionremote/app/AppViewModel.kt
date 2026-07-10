@@ -3,7 +3,9 @@ package dev.companionremote.app
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import dev.companionremote.app.data.AppSkin
 import dev.companionremote.app.data.CredentialsRepository
+import dev.companionremote.app.data.HapticStrength
 import dev.companionremote.app.data.SettingsRepository
 import dev.companionremote.app.data.ThemeMode
 import dev.companionremote.app.discovery.AtvDiscovery
@@ -68,8 +70,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** Theme mode (persisted). */
     val themeMode = MutableStateFlow(ThemeMode.System)
 
+    /** Visual skin (persisted). */
+    val skin = MutableStateFlow(AppSkin.Midnight)
+
     /** Whether to fetch real app icons over the network (opt-in). */
     val fetchAppIcons = MutableStateFlow(false)
+
+    /** Button-press vibration feedback (persisted). */
+    val hapticEnabled = MutableStateFlow(true)
+    val hapticStrength = MutableStateFlow(HapticStrength.Medium)
+
+    /** Whether the first-run remote tutorial has already been shown. */
+    val introSeen = MutableStateFlow(false)
 
     // Where to return when leaving Settings (device list or the remote).
     private var settingsReturnTo: Screen = Screen.DeviceList
@@ -115,7 +127,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             settingsRepository.themeMode.collect { themeMode.value = it }
         }
         viewModelScope.launch {
+            settingsRepository.skin.collect { skin.value = it }
+        }
+        viewModelScope.launch {
             settingsRepository.fetchAppIcons.collect { fetchAppIcons.value = it }
+        }
+        viewModelScope.launch {
+            settingsRepository.hapticEnabled.collect { hapticEnabled.value = it }
+        }
+        viewModelScope.launch {
+            settingsRepository.hapticStrength.collect { hapticStrength.value = it }
+        }
+        viewModelScope.launch {
+            settingsRepository.introSeen.collect { introSeen.value = it }
         }
         startScan()
     }
@@ -130,8 +154,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { settingsRepository.setThemeMode(mode) }
     }
 
+    fun setSkin(skin: AppSkin) {
+        viewModelScope.launch { settingsRepository.setSkin(skin) }
+    }
+
     fun setFetchAppIcons(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.setFetchAppIcons(enabled) }
+    }
+
+    fun setHapticEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setHapticEnabled(enabled) }
+    }
+
+    fun setHapticStrength(strength: HapticStrength) {
+        viewModelScope.launch { settingsRepository.setHapticStrength(strength) }
+    }
+
+    fun markIntroSeen() {
+        viewModelScope.launch { settingsRepository.setIntroSeen(true) }
     }
 
     fun openSettings() {
@@ -350,6 +390,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         keyboardText.value = ""
         textSyncJob?.cancel()
         withClient { it.textClear() }
+    }
+
+    /**
+     * Voice dictation result: replace the focused TV field with [text]
+     * immediately (no debounce). A no-op on the TV side when nothing is
+     * focused — the UI nudges the user to focus a field first.
+     */
+    fun dictateText(text: String) {
+        if (text.isBlank()) return
+        keyboardText.value = text
+        textSyncJob?.cancel()
+        withClient { it.textSet(text) }
     }
 
     // Touchpad (M7)

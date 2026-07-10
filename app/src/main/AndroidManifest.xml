@@ -7,6 +7,18 @@
          silently finds nothing on many devices. -->
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- Voice input (dictation into TV search boxes). Optional: requested only
+         when the user taps the mic; on-device recognition is preferred. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Button-press vibration feedback (normal permission, auto-granted). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Lets us resolve the system speech-recognition service on Android 11+. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
 
     <application
         android:label="CyberRemote"
