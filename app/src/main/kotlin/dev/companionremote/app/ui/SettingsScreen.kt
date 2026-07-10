@@ -83,6 +83,7 @@ fun SettingsScreen(viewModel: AppViewModel) {
     val clipboard = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val previewHaptic = rememberHapticPreview()
 
     Scaffold(
         containerColor = androidx.compose.ui.graphics.Color.Transparent,
@@ -172,9 +173,16 @@ fun SettingsScreen(viewModel: AppViewModel) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 16.dp, top = 4.dp),
                     )
-                    OptionRow(s.hapticLight, hapticStrength == HapticStrength.Light) { viewModel.setHapticStrength(HapticStrength.Light) }
-                    OptionRow(s.hapticMedium, hapticStrength == HapticStrength.Medium) { viewModel.setHapticStrength(HapticStrength.Medium) }
-                    OptionRow(s.hapticStrong, hapticStrength == HapticStrength.Strong) { viewModel.setHapticStrength(HapticStrength.Strong) }
+                    // Selecting a level buzzes at that strength so it can be felt.
+                    OptionRow(s.hapticLight, hapticStrength == HapticStrength.Light) {
+                        viewModel.setHapticStrength(HapticStrength.Light); previewHaptic(HapticStrength.Light)
+                    }
+                    OptionRow(s.hapticMedium, hapticStrength == HapticStrength.Medium) {
+                        viewModel.setHapticStrength(HapticStrength.Medium); previewHaptic(HapticStrength.Medium)
+                    }
+                    OptionRow(s.hapticStrong, hapticStrength == HapticStrength.Strong) {
+                        viewModel.setHapticStrength(HapticStrength.Strong); previewHaptic(HapticStrength.Strong)
+                    }
                 }
             }
 

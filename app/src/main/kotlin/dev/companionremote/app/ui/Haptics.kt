@@ -30,6 +30,16 @@ private fun durationFor(strength: HapticStrength): Long = when (strength) {
     HapticStrength.Strong -> 22
 }
 
+private fun buzz(vibrator: Vibrator?, strength: HapticStrength) {
+    if (vibrator?.hasVibrator() == true) {
+        runCatching {
+            vibrator.vibrate(
+                VibrationEffect.createOneShot(durationFor(strength), amplitudeFor(strength)),
+            )
+        }
+    }
+}
+
 /**
  * Returns a `() -> Unit` that fires a short button-press vibration whose
  * amplitude follows [strength], or does nothing when [enabled] is false.
@@ -39,13 +49,16 @@ private fun durationFor(strength: HapticStrength): Long = when (strength) {
 fun rememberHaptic(enabled: Boolean, strength: HapticStrength): () -> Unit {
     val context = LocalContext.current
     val vibrator = remember(context) { vibrator(context) }
-    return {
-        if (enabled && vibrator?.hasVibrator() == true) {
-            runCatching {
-                vibrator.vibrate(
-                    VibrationEffect.createOneShot(durationFor(strength), amplitudeFor(strength)),
-                )
-            }
-        }
-    }
+    return { if (enabled) buzz(vibrator, strength) }
+}
+
+/**
+ * Returns a `(HapticStrength) -> Unit` that vibrates once at the given
+ * strength — used to preview a level the moment the user selects it.
+ */
+@Composable
+fun rememberHapticPreview(): (HapticStrength) -> Unit {
+    val context = LocalContext.current
+    val vibrator = remember(context) { vibrator(context) }
+    return { strength -> buzz(vibrator, strength) }
 }
