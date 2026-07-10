@@ -5,7 +5,7 @@ A free, open-source, ad-free Android remote for Apple TV (tvOS 15+). It speaks A
 > CyberRemote is an independent open-source project. It is **not affiliated with, endorsed by, or sponsored by Apple Inc.** "Apple TV" is a trademark of Apple Inc., used here only to describe compatibility.
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/ee901631-d246-4841-9c41-ebeab1fd6666" width="240" alt="Remote">
+  <img src="docs/screenshots/remote.png" width="240" alt="Remote">
   <img src="https://github.com/user-attachments/assets/2fdf3f5a-a426-4550-b83f-acd42af68785" width="240" alt="Touchpad">
   <img src="https://github.com/user-attachments/assets/4a444713-9511-4d92-b9d1-aa691d4e18b2" width="240" alt="App launcher">
 </p>
@@ -92,7 +92,7 @@ MIT. The protocol knowledge comes from the outstanding reverse-engineering work 
 > CyberRemote 是一个独立的开源项目，**与 Apple Inc. 无任何关联，未获其认可或赞助**。"Apple TV" 是 Apple Inc. 的商标，此处仅用于说明兼容性。
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/ee901631-d246-4841-9c41-ebeab1fd6666" width="240" alt="遥控界面">
+  <img src="docs/screenshots/remote.png" width="240" alt="遥控界面">
   <img src="https://github.com/user-attachments/assets/2fdf3f5a-a426-4550-b83f-acd42af68785" width="240" alt="触控板界面">
   <img src="https://github.com/user-attachments/assets/4a444713-9511-4d92-b9d1-aa691d4e18b2" width="240" alt="应用快速启动">
 </p>
