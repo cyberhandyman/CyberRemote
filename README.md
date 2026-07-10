@@ -16,10 +16,16 @@ A free, open-source, ad-free Android remote for Apple TV (tvOS 15+). It speaks A
 ## Features
 
 - **Full keyboard input** — when a text field is focused on the TV, your phone's keyboard opens automatically and types straight into it (search boxes, passwords, URLs). CJK and emoji included.
-- D-pad, select, back, home, play/pause, volume
+- **Voice dictation** — tap the mic and speak; your words are typed into the focused TV search box (on-device speech recognition, offline-first).
+- D-pad, OK (tap = select, hold), back, home, play/pause
+- **Volume** — tap +/− or swipe the volume bar up/down
 - Wake and sleep
 - Touchpad swipe navigation
 - App list + launch
+- **Themes** — light / dark / follow-system, plus four glass skins (Midnight, Graphite, Aurora, Sunset)
+- **Haptic feedback** — optional button vibration with adjustable strength
+- **In-app updates** — optionally checks GitHub Releases and installs the new APK for you
+- Auto-reconnect with a quick first-run tutorial
 - Pairing with the PIN shown on the TV (HomeKit-style pair-setup); your credentials never leave the phone (encrypted with the Android Keystore)
 
 ## Install
@@ -97,10 +103,16 @@ MIT. The protocol knowledge comes from the outstanding reverse-engineering work 
 ## 功能
 
 - **完整键盘输入**——当电视上有输入框获得焦点时，手机键盘会自动弹出并直接输入（搜索框、密码、网址）。支持中日韩文字与 emoji。
-- 方向键、确认、返回、主屏、播放/暂停、音量
+- **语音听写**——点麦克风说话，识别出的文字会输入到电视上聚焦的搜索框（设备本地语音识别，优先离线）。
+- 方向键、OK（轻点=确认，可长按）、返回、主屏、播放/暂停
+- **音量**——点 +/− 或在音量条上上下滑动
 - 唤醒与睡眠
 - 触控板滑动导航
 - 应用列表 + 启动
+- **主题**——浅色 / 深色 / 跟随系统，另有四套玻璃质感皮肤（午夜蓝、石墨灰、极光紫、日落橙）
+- **震动反馈**——可选的按键震动，强度可调
+- **应用内更新**——可选地检查 GitHub Releases 并为你安装新版 APK
+- 自动重连，并附带简短的首次使用引导
 - 使用电视上显示的 PIN 码配对（HomeKit 式的 pair-setup）；你的配对凭据永不离开手机（由 Android Keystore 加密保存）
 
 ## 安装
